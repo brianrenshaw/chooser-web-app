@@ -1,0 +1,9 @@
+{
+  "appId": "com.brianrenshaw.chooser",
+  "appName": "Finger Chooser",
+  "webDir": "web",
+  "ios": {
+    "contentInset": "always"
+  },
+  "backgroundColor": "#000000"
+}

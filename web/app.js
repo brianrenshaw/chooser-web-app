@@ -66,8 +66,20 @@
     osc.stop(t0 + dur + 0.02);
   }
 
+  function nativeHaptics() {
+    const cap = window.Capacitor;
+    if (!cap?.isNativePlatform?.()) return null;
+    return cap.Plugins?.Haptics ?? null;
+  }
+
   function tick(intensity) {
     vibrate(Math.round(8 + 32 * intensity));
+    const haptics = nativeHaptics();
+    if (haptics?.impact) {
+      const style = intensity < 0.33 ? 'LIGHT' : intensity < 0.66 ? 'MEDIUM' : 'HEAVY';
+      haptics.impact({ style }).catch(() => {});
+      return;
+    }
     click({
       freq: 70 + 180 * intensity,
       dur: 0.04 + 0.03 * intensity,
@@ -77,6 +89,13 @@
 
   function revealClick() {
     vibrate([0, 30, 60, 30, 120]);
+    const haptics = nativeHaptics();
+    if (haptics?.notification) {
+      haptics.notification({ type: 'SUCCESS' }).catch(() => {});
+      setTimeout(() => haptics.impact?.({ style: 'HEAVY' }).catch(() => {}), 80);
+      setTimeout(() => haptics.impact?.({ style: 'HEAVY' }).catch(() => {}), 180);
+      return;
+    }
     const ctx = ensureAudio();
     if (!ctx) return;
     click({ freq: 220, dur: 0.18, vol: 0.55, type: 'triangle' });
