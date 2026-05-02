@@ -72,11 +72,21 @@
     return cap.Plugins?.Haptics ?? null;
   }
 
-  function tick(intensity) {
-    vibrate(Math.round(8 + 32 * intensity));
+  function fingerLandHaptic() {
+    vibrate(10);
     const haptics = nativeHaptics();
     if (haptics?.impact) {
-      const style = intensity < 0.33 ? 'LIGHT' : intensity < 0.66 ? 'MEDIUM' : 'HEAVY';
+      haptics.impact({ style: 'LIGHT' }).catch(() => {});
+      return;
+    }
+    click({ freq: 70, dur: 0.04, vol: 0.18 });
+  }
+
+  function tick(intensity) {
+    vibrate(Math.round(15 + 45 * intensity));
+    const haptics = nativeHaptics();
+    if (haptics?.impact) {
+      const style = intensity < 0.2 ? 'MEDIUM' : 'HEAVY';
       haptics.impact({ style }).catch(() => {});
       return;
     }
@@ -87,13 +97,19 @@
     });
   }
 
-  function revealClick() {
-    vibrate([0, 30, 60, 30, 120]);
+  function revealHaptic() {
+    vibrate([0, 60, 70, 60, 70, 60, 240]);
     const haptics = nativeHaptics();
-    if (haptics?.notification) {
-      haptics.notification({ type: 'SUCCESS' }).catch(() => {});
-      setTimeout(() => haptics.impact?.({ style: 'HEAVY' }).catch(() => {}), 80);
-      setTimeout(() => haptics.impact?.({ style: 'HEAVY' }).catch(() => {}), 180);
+    if (haptics?.impact) {
+      [0, 70, 140, 210, 290, 380].forEach((t) =>
+        setTimeout(() => haptics.impact({ style: 'HEAVY' }).catch(() => {}), t)
+      );
+      if (haptics.vibrate) {
+        setTimeout(() => haptics.vibrate({ duration: 300 }).catch(() => {}), 420);
+      }
+      if (haptics.notification) {
+        setTimeout(() => haptics.notification({ type: 'SUCCESS' }).catch(() => {}), 760);
+      }
       return;
     }
     const ctx = ensureAudio();
@@ -114,7 +130,7 @@
     stage.appendChild(el);
     pointers.set(id, { el, x, y, hue });
     stage.classList.add('has-fingers');
-    tick(0);
+    fingerLandHaptic();
   }
 
   function moveRing(id, x, y) {
@@ -165,7 +181,7 @@
     state = STATE.COUNTDOWN;
     countdownStart = performance.now();
     lastTickAt = 0;
-    const tick = (now) => {
+    const step = (now) => {
       if (state !== STATE.COUNTDOWN) return;
       const t = Math.min(1, (now - countdownStart) / COUNTDOWN_MS);
       const eased = t * t;
@@ -180,9 +196,9 @@
         revealWinner();
         return;
       }
-      countdownRaf = requestAnimationFrame(tick);
+      countdownRaf = requestAnimationFrame(step);
     };
-    countdownRaf = requestAnimationFrame(tick);
+    countdownRaf = requestAnimationFrame(step);
   }
 
   function revealWinner() {
@@ -199,7 +215,7 @@
       if (p === winner) p.el.classList.add('winner');
       else p.el.classList.add('loser');
     }
-    revealClick();
+    revealHaptic();
   }
 
   function handlePointerDown(e) {
