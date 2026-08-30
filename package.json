@@ -3,16 +3,21 @@
   "version": "1.0.0",
   "private": true,
   "description": "Pick one finger at random from a group touching the screen.",
+  "engines": {
+    "node": ">=20.0.0"
+  },
   "scripts": {
+    "check": "npm run check:web",
+    "check:web": "node --check web/app.js",
     "cap:sync": "cap sync ios",
     "cap:open": "cap open ios"
   },
   "devDependencies": {
-    "@capacitor/cli": "^7.0.0"
+    "@capacitor/cli": "^7.6.8"
   },
   "dependencies": {
-    "@capacitor/core": "^7.0.0",
+    "@capacitor/core": "^7.6.8",
     "@capacitor/haptics": "^7.0.0",
-    "@capacitor/ios": "^7.0.0"
+    "@capacitor/ios": "^7.6.8"
   }
 }

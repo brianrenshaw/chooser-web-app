@@ -1,6 +1,6 @@
 {
-  "appId": "com.brianrenshaw.chooser",
-  "appName": "Finger Chooser",
+  "appId": "com.brianrenshaw.fingerchooser",
+  "appName": "Who's First?",
   "webDir": "web",
   "ios": {
     "contentInset": "always"

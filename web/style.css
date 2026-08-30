@@ -21,6 +21,10 @@ html, body {
 
 #stage {
   position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
   inset: 0;
   background: #000;
   touch-action: none;
@@ -49,6 +53,161 @@ html, body {
 
 #stage.has-fingers #hint {
   opacity: 0;
+}
+
+#stage.is-revealed #hint {
+  top: auto;
+  bottom: calc(28px + env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  font-size: 15px;
+  color: rgba(255, 255, 255, 0.58);
+  opacity: 1;
+}
+
+#info-button {
+  position: fixed;
+  top: calc(16px + env(safe-area-inset-top));
+  right: calc(16px + env(safe-area-inset-right));
+  z-index: 10;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 50%;
+  background: rgba(24, 24, 28, 0.76);
+  color: rgba(255, 255, 255, 0.72);
+  font: 500 20px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  -webkit-tap-highlight-color: transparent;
+  backdrop-filter: blur(16px);
+  transition: opacity 180ms ease, border-color 180ms ease, color 180ms ease;
+}
+
+#info-button:active {
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.42);
+}
+
+#stage.has-fingers + #info-button,
+body.about-open #info-button {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.about-backdrop {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  padding:
+    calc(24px + env(safe-area-inset-top))
+    calc(20px + env(safe-area-inset-right))
+    calc(24px + env(safe-area-inset-bottom))
+    calc(20px + env(safe-area-inset-left));
+  background: rgba(0, 0, 0, 0.72);
+  backdrop-filter: blur(18px);
+}
+
+.about-backdrop[hidden] {
+  display: none;
+}
+
+.about-dialog {
+  position: relative;
+  width: min(100%, 420px);
+  max-height: 100%;
+  overflow-y: auto;
+  padding: 34px 28px 24px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 28px;
+  outline: none;
+  background: rgba(24, 24, 28, 0.96);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.62);
+}
+
+.close-button {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.74);
+  font: 300 30px/1 system-ui, sans-serif;
+}
+
+.mini-ring {
+  width: 58px;
+  height: 58px;
+  margin: 0 0 20px;
+  border: 4px solid #35e8ff;
+  border-radius: 50%;
+  box-shadow: 0 0 18px #ff2bd6, inset 0 0 14px rgba(163, 255, 0, 0.72);
+}
+
+.eyebrow {
+  margin: 0 0 5px;
+  color: #61eaff;
+  font-size: 13px;
+  font-weight: 650;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+}
+
+.about-dialog h1 {
+  margin: 0;
+  font-size: 31px;
+  letter-spacing: -0.03em;
+}
+
+.instructions {
+  display: grid;
+  gap: 12px;
+  margin: 26px 0 22px;
+  padding-left: 22px;
+  color: rgba(255, 255, 255, 0.86);
+  font-size: 17px;
+  line-height: 1.4;
+}
+
+.instructions li::marker {
+  color: #61eaff;
+  font-weight: 700;
+}
+
+.on-device-note {
+  margin: 0;
+  padding: 16px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.055);
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.about-links {
+  display: flex;
+  gap: 20px;
+  margin-top: 22px;
+}
+
+.about-links a {
+  color: #61eaff;
+  font-size: 15px;
+  text-decoration: none;
+}
+
+.version {
+  margin: 20px 0 0;
+  color: rgba(255, 255, 255, 0.32);
+  font-size: 12px;
 }
 
 .ring {
@@ -94,4 +253,16 @@ html, body {
   opacity: 0;
   animation: none;
   filter: brightness(0.4);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ring {
+    animation: none;
+    transition-duration: 0.01ms;
+  }
+
+  #hint,
+  #info-button {
+    transition-duration: 0.01ms;
+  }
 }

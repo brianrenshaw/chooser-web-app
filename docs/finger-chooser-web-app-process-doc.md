@@ -1,4 +1,4 @@
-# Finger Chooser Web App Process Doc
+# Who's First? Web App Process Doc
 
 [[toc-levels:2]]
 [[toc]]
@@ -29,7 +29,7 @@ The following table describes the runtime UI states.
 
 | State | Visible result |
 |---|---|
-| `IDLE` | Black screen, faint hint text "Place fingers to begin." |
+| `IDLE` | Black screen, faint hint text "Place two or more fingers." |
 | `WAITING` | One glowing neon ring per finger, slowly pulsing. Hint text fades. Each ring has its own hue. |
 | `COUNTDOWN` | Same rings, pulse rate accelerates from 1200ms period down to 150ms over `COUNTDOWN_MS`. |
 | `REVEALED` | One ring scales to 1.5x, brightens, and holds. The other rings fade to opacity 0. |
@@ -69,7 +69,7 @@ The four states live in the `STATE` constant at the top of `app.js`. State trans
 *   `IDLE` (default). Two or more fingers down → `WAITING`.
 *   `WAITING`. A `setTimeout` is set for `WAIT_MS` (1500ms). Any new `pointerdown` or `pointerup` cancels the timer and re-enters `WAITING` (which sets a fresh timer). If the finger count drops below 2, go to `IDLE`. If the timer fires with at least 2 fingers down, go to `COUNTDOWN`.
 *   `COUNTDOWN`. `requestAnimationFrame` loop runs for `COUNTDOWN_MS` (1000ms) and accelerates the pulse animation. A new `pointerdown` cancels back to `WAITING` (so latecomers reset the round). A `pointerup` is allowed; the countdown continues with remaining fingers unless the count drops below 2.
-*   `REVEALED`. The winner is picked with `Math.floor(Math.random() * entries.length)`. Winner gets `.winner` class, others get `.loser`. A `RESET_LOCKOUT_MS` (400ms) lockout prevents the picking finger's natural lift-and-retap from instantly resetting the round. Any pointerdown after that lockout resets to `IDLE`.
+*   `REVEALED`. The winner is picked with an unbiased Web Crypto random index (falling back to `Math.random()` where Web Crypto is unavailable). Winner gets `.winner` class, others get `.loser`. The first new pointerdown clears the displayed result, registers that finger, and starts the next round.
 
 ### Why the late-joiner wait
 
@@ -85,7 +85,7 @@ Touch events (`touchstart`, `touchmove`, `touchend`) work but require a differen
 
 Random hues collide. A fixed palette of N colors caps the player count and looks repetitive across rounds. The golden angle (137.508 degrees) is the rotation that maximally separates points placed sequentially around a circle. Each new finger picks `(lastHue + 137.508) % 360`. The first round starts from `Math.random() * 360`, so colors vary each session but always look distinct from each other.
 
-The colors are computed in OKLCH color space rather than HSL because OKLCH is perceptually uniform. In HSL, yellow at 60% lightness looks washed out next to blue at 60% lightness; in OKLCH, equal lightness numbers produce equal perceived brightness.
+The colors are computed in OKLCH color space where supported because OKLCH is perceptually uniform. In HSL, yellow at 60% lightness looks washed out next to blue at 60% lightness; in OKLCH, equal lightness numbers produce equal perceived brightness. Older WebKit versions receive an HSL fallback so the rings remain visible.
 
 ### Why the audio click
 
@@ -103,10 +103,10 @@ The following table lists every file that matters for this project.
 
 | File | Location | Purpose |
 |---|---|---|
-| `index.html` | `web/` | Entry point. Viewport meta, PWA meta, script and style links, the `#stage` div. |
+| `index.html` | `web/` | Entry point. Viewport/PWA metadata, the `#stage` chooser, and the Help/About dialog. |
 | `app.js` | `web/` | The whole app: state machine, pointer handling, rendering, haptics. |
 | `style.css` | `web/` | Black background, neon ring styles, pulse keyframes, winner/loser transitions. |
-| `icon.svg` | `web/` | Favicon. Black rounded square with a gradient neon ring and SVG glow filter. |
+| `icon.svg` | `web/` | Favicon and native-art source. Black square with a gradient neon ring and SVG glow filter. |
 | `apple-touch-icon.png` | `web/` | 180x180 PNG fallback for iOS home screen icon (older iOS does not accept SVG). |
 | `.nojekyll` | `web/` | Tells GitHub Pages not to run Jekyll on the artifact. |
 | `capacitor.config.json` | repo root | Capacitor config: appId, appName, webDir points at `web/`. |
@@ -207,7 +207,8 @@ In `web/app.js`, top of the file:
 
 *   `WAIT_MS` controls the late-joiner window (default 1500ms)
 *   `COUNTDOWN_MS` controls the tension countdown (default 1000ms)
-*   `RESET_LOCKOUT_MS` controls how long after reveal a pointerdown is ignored (default 400ms)
+
+After a result is revealed, the first new pointerdown immediately clears the old result and registers that finger for the next round.
 
 After editing, push to deploy the web version, and run `npx cap sync ios` plus a Cmd+R rebuild for the iOS version.
 
@@ -274,14 +275,14 @@ Bundle ID and app name are set in `capacitor.config.json` (`appId`, `appName`). 
 
 *   **Capacitor's iOS template still uses CocoaPods.** Not Swift Package Manager. CocoaPods must be installed (`brew install cocoapods`) before `npx cap add ios` will work.
 
-*   **Capacitor 7 needs Xcode 16+.** The project is built and tested with Xcode 26 beta. Older Xcode may not build the generated project.
+*   **Capacitor 7 needs Xcode 16+.** The project currently builds with Xcode 26.6. Older Xcode may not build the generated project.
 
 ## If You Are Setting This Up From Scratch
 
 Prerequisites:
 
 *   macOS with Homebrew
-*   Node.js (for `npx`)
+*   Node.js 20 or newer (for `npx`)
 *   Xcode 16 or newer, with command-line tools pointing at the Xcode app (not just CommandLineTools)
 *   CocoaPods (`brew install cocoapods`)
 *   GitHub CLI (`gh`) authenticated as the target account
@@ -309,6 +310,8 @@ To set up the Pages deploy on a fresh fork:
 
 ## History
 
+For the current App Store preparation status, see [`docs/app-store-readiness.md`](app-store-readiness.md).
+
 The following table tracks meaningful changes.
 
 | Date | Change |
@@ -320,3 +323,5 @@ The following table tracks meaningful changes.
 | 2026-05-01 | Haptic feedback strengthened. `fingerLandHaptic`, `tick`, and `revealHaptic` split out. Reveal volley extended to six HEAVY impacts plus sustained vibrate plus SUCCESS notification. |
 | 2026-05-02 | Process documentation written. |
 | 2026-05-02 | Fixed `tick` shadowing bug in `enterCountdown()` (renamed inner rAF callback to `step`). Countdown haptic ticks now actually fire and escalate as designed. |
+| 2026-08-29 | Began App Store readiness pass: fixed Xcode/CocoaPods build setting, updated Capacitor 7, added replay guidance and older-iOS color fallback, added About/Privacy/Support, replaced default native branding, and added privacy/export metadata. |
+| 2026-08-30 | Registered `com.brianrenshaw.fingerchooser` under the paid Apple team, changed v1 to iPhone-only, added the public support email, and verified signed archive plus App Store IPA export. The App Store Connect app record still requires the signed-in New App form. |
