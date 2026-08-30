@@ -8,7 +8,7 @@ Who's First? is now a native iPhone app built with SwiftUI, Swift 6, and an iOS 
 
 The native implementation and automated simulator coverage are in place. A signed build 4 archive and distribution-signed IPA were created successfully on August 30, 2026. Build 4 processed as VALID and is attached to the draft version 1.0, replacing build 1. The final Pinball-inclusive metadata, App Review notes, and six screenshots are applied and verified in App Store Connect. Version 1.0 remains PREPARE_FOR_SUBMISSION, and nothing has been submitted.
 
-Build 1 remains an older valid TestFlight artifact that supports Together only, but it is no longer attached to the draft version. Build 3 also processed as VALID, but the final audit superseded it after removing an unused System Boot Time required-reason API call and polishing the compact controls. Local build 2 is superseded as well. Build 4 is the attached three-mode release candidate. The only remaining release gates are physical-iPhone/TestFlight QA and the owner's explicit Submit for Review approval.
+Build 1 remains an older valid TestFlight artifact that supports Together only, but it is no longer attached to the draft version. Build 3 also processed as VALID, but the final audit superseded it after removing an unused System Boot Time required-reason API call and polishing the compact controls. Local build 2 is superseded as well. Build 4 is the attached three-mode release candidate. The remaining release gates are selecting the intended internal tester(s), configuring their TestFlight group, physical-iPhone QA, and the owner's explicit Submit for Review approval.
 
 ## Release identity
 
@@ -49,7 +49,7 @@ The iOS 18 minimum is intentional. There is no requirement to preserve behavior 
 | Automated verification | Passed locally | Native build, 37 unit tests, and 8 UI tests for launch, mode cycling, long-press default behavior, offline information, and rotation |
 | Physical-device verification | Required | Multitouch, Taptic Engine, sound, interruptions, accessibility, and sustained Pinball remain hardware checks |
 | Signed build 4 archive | Complete | `WhosFirst-1.0-build4.xcarchive`; archive and distribution export succeeded |
-| TestFlight build 4 | VALID | Processing complete; install and retest on a physical iPhone |
+| TestFlight build 4 | VALID and ready for internal testing | No beta group exists yet; choose the intended tester(s), create or select an internal group, and assign build 4 before installation |
 | Version 1.0 build attachment | Complete | Build 4 is attached to the draft, replacing build 1 |
 | Store metadata and review notes | Applied and verified | Pinball-inclusive copy from app-store-assets/metadata.md is in App Store Connect |
 | Screenshots | Applied and verified | Six processed 1320×2868 RGB images cover Together, Tap In, Pinball setup/run/result, and offline privacy in the intended order |
@@ -218,6 +218,8 @@ App Store Connect accepted the build 4 upload on August 30, 2026. It processed a
 
 Do not replace the attached build 4 with the old build 1 or superseded build 3.
 
+Build 4 is ready for internal beta testing and has no export-compliance blocker. The app currently has no TestFlight beta groups, so no tester has access and no notification has been sent. Before hardware QA, create or select an internal group, add the intended App Store Connect tester(s), assign build 4, and confirm the exact recipients before allowing notifications. The canonical What to Test copy is in **app-store-assets/metadata.md**.
+
 ### 4. Test the processed build
 
 Install build 4 from TestFlight on the physical QA iPhone. Repeat at least:
@@ -343,6 +345,7 @@ Submit only when every item below is true:
 - [ ] VoiceOver and Reduce Motion paths pass.
 - [x] Signed build 4 archive and distribution export complete with no unresolved error.
 - [x] Build 4 processed as VALID in App Store Connect.
+- [ ] An internal TestFlight group contains build 4 and only the intended tester(s).
 - [ ] Build 4 passes physical-iPhone/TestFlight smoke testing.
 - [x] Version 1.0 selects build 4, replacing build 1.
 - [x] Pinball-inclusive copy, App Review notes, and six screenshots are applied and verified in App Store Connect.
@@ -350,4 +353,4 @@ Submit only when every item below is true:
 - [x] Review notes explain all three modes and hardware testing.
 - [ ] The owner inspects the complete version page and approves Submit for Review.
 
-The remaining path is: install build 4 through TestFlight and complete physical-iPhone QA → owner review → explicit Submit for Review approval.
+The remaining path is: choose the intended internal tester(s) and configure their TestFlight group → install build 4 and complete physical-iPhone QA → owner review → explicit Submit for Review approval.

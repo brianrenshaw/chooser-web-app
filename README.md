@@ -80,10 +80,11 @@ npm audit
 
 ## Release status
 
-The native build 4 implementation, automated simulator coverage, signed archive, exported IPA, and App Store Connect upload are complete. Build 4 processed as VALID and is attached to the draft version 1.0, replacing build 1. The version remains PREPARE_FOR_SUBMISSION, and nothing has been submitted. The Pinball-inclusive metadata, App Review notes, and all six screenshots are applied and verified in App Store Connect. Build 3 also processed as VALID, but it was superseded after the final audit removed an unused System Boot Time required-reason API call and polished the compact controls. The remaining release steps are:
+The native build 4 implementation, automated simulator coverage, signed archive, exported IPA, and App Store Connect upload are complete. Build 4 processed as VALID and is attached to the draft version 1.0, replacing build 1. The version remains PREPARE_FOR_SUBMISSION, and nothing has been submitted. The Pinball-inclusive metadata, App Review notes, TestFlight test guidance, and all six screenshots are applied and verified in App Store Connect. Build 3 also processed as VALID, but it was superseded after the final audit removed an unused System Boot Time required-reason API call and polished the compact controls. The remaining release steps are:
 
-1. physical-iPhone QA for multitouch, haptics, sound, silent mode, VoiceOver, Reduce Motion, interruptions, rotation, and sustained Pinball animation;
-2. final owner review and explicit **Submit for Review** approval.
+1. create or choose an internal TestFlight group and add the intended App Store Connect tester(s)—none are configured yet;
+2. physical-iPhone QA for multitouch, haptics, sound, silent mode, VoiceOver, Reduce Motion, interruptions, rotation, and sustained Pinball animation;
+3. final owner review and explicit **Submit for Review** approval.
 
 Local release artifacts are under `ios/App/build/app-store/` (ignored by Git), including `WhosFirst-1.0-build4.xcarchive` and the distribution-signed `export-build4/App.ipa`.
 

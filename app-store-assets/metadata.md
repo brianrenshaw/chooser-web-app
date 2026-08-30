@@ -1,6 +1,6 @@
 # Who's First? — App Store Metadata
 
-This file is the source of truth for the English (U.S.) App Store listing. The copy and App Review notes below are applied and verified in App Store Connect.
+This file is the source of truth for the English (U.S.) App Store listing. The copy, App Review notes, and TestFlight guidance below are applied and verified in App Store Connect.
 
 ## Product identity
 
@@ -74,6 +74,16 @@ Pinball: cycle the mode icon again. Place the iPhone flat and have 2–12 people
 About, Help, and Privacy are bundled native screens and remain available without a connection. The public Support and Privacy links open only when the reviewer explicitly selects them.
 
 No login, required network connection, permissions, purchases, advertising, or data collection are involved. Finger positions, Tap In entries, Pinball seats, paths, and results are temporary in-memory interaction state only; they are not names, persisted profiles, or transmitted data. Only the user's preferred launch mode is stored locally. A physical multi-touch iPhone is required to fully test Together, Core Haptics, and device audio behavior.
+
+## TestFlight — What to Test
+
+Please try all three modes in portrait and landscape:
+
+• Together — place 2–5 fingers at once, including adding or lifting a finger during the settling window and countdown.
+• Tap In — add groups of different sizes and try Undo, Clear, Pick again, and New group.
+• Pinball — add 2–12 seats, run repeated choices, and rotate or background the app during a run.
+
+Please also check sound and haptics, VoiceOver, Reduce Motion, offline launch, normal taps on the mode icon, and a long press that saves the launch default. Send feedback to contact@foliohtml.com.
 
 ## App privacy
 

@@ -285,7 +285,7 @@ xcodebuild \
 
 The build 4 archive is `ios/App/build/app-store/WhosFirst-1.0-build4.xcarchive`, and its distribution-signed IPA is `ios/App/build/app-store/export-build4/App.ipa`. App Store Connect accepted the upload, processed the package as VALID, and attached build 4 to draft version 1.0 in place of build 1. The version remains PREPARE_FOR_SUBMISSION; nothing has been submitted.
 
-On August 30, 2026, build 3 passed App Store processing as VALID, but the final audit superseded it after removing an unused System Boot Time required-reason API call and polishing the compact controls. Before submitting the version for review, install build 4 through TestFlight, complete physical-iPhone QA, and inspect Organizer/App Store Connect for version 1.0, build 4, bundle identifier, signing team, iPhone-only support, and the embedded privacy manifest. Do not replace the attached build 4 with an earlier build.
+On August 30, 2026, build 3 passed App Store processing as VALID, but the final audit superseded it after removing an unused System Boot Time required-reason API call and polishing the compact controls. Build 4 is ready for internal beta testing, but the app has no TestFlight beta group yet. Before submitting the version for review, confirm the intended internal tester(s), create or select their group, assign build 4, install it through TestFlight, complete physical-iPhone QA, and inspect Organizer/App Store Connect for version 1.0, build 4, bundle identifier, signing team, iPhone-only support, and the embedded privacy manifest. Do not replace the attached build 4 with an earlier build.
 
 ## Physical-device release checklist
 
