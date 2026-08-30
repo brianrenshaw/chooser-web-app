@@ -4,7 +4,7 @@ Last audited: August 30, 2026
 
 ## Bottom line
 
-Who's First? is a working native-wrapped iPhone app, not merely an idea or a web-only prototype. Debug, Release, signed archive, and App Store IPA export all pass with Xcode 26.6. The paid Apple team and bundle identifier are verified through the live App Store Connect API, and Xcode created valid development and App Store provisioning profiles. The App Store Connect record exists as `Who's First? Decide Together`; metadata, screenshots, and the first TestFlight upload are in progress.
+Who's First? is a working native-wrapped iPhone app, not merely an idea or a web-only prototype. Debug, Release, signed archive, App Store IPA export, and Apple server-side validation all pass with Xcode 26.6. App Store Connect has the record `Who's First? Decide Together`, complete English listing copy, a 4+ age declaration, Utilities category, four processed 6.9-inch screenshots, and a valid TestFlight 1.0 (build 1) linked to the store version.
 
 The intended product remains deliberately narrow: choose one person to go first. Scoring, scoreboards, player history, and game management are out of scope.
 
@@ -21,15 +21,18 @@ The intended product remains deliberately narrow: choose one person to go first.
 | Apple registration | `com.brianrenshaw.fingerchooser` is registered under paid team `2LZJMJR6V8` |
 | Branding | Neon-ring native icon, touch icon, and black launch screen replace Capacitor defaults |
 | Privacy | No accounts, ads, analytics, tracking, storage, or network calls; app privacy manifest declares no collection |
-| Public pages | Privacy and support are ready to deploy and list `contact@foliohtml.com` |
+| Public pages | Privacy and support are live on GitHub Pages and list `contact@foliohtml.com` |
 | In-app disclosure | Help/About dialog links to privacy and support from the main screen |
 | Dependencies | Production and full npm audits report zero known vulnerabilities |
+| App Store listing | Name, subtitle, description, promotional text, keywords, URLs, copyright, content rights, category, and screenshots are populated |
+| TestFlight | 1.0 (build 1) uploaded, processed as `VALID`, export compliance recognized as false, and “What to Test” populated |
 
 ## What still blocks submission
 
-1. **Run current physical-device QA.** Re-test two through five fingers, late joiners, finger removal, replay, background/foreground reset, audio, and native haptics on at least one current iPhone. Simulator and desktop browsers cannot validate true multi-touch or Taptic behavior.
-2. **Finish the review contact.** Apple requires a phone number for the private App Review contact. The email is `contact@foliohtml.com`; a phone number still needs to be supplied immediately before submission.
-3. **Approve submission.** Everything else can be prepared and verified without submitting the app. The final Submit for Review action remains a deliberate owner approval.
+1. **Complete the UI-only App Store confirmations.** In App Store Connect, publish “No, we do not collect data,” confirm Free pricing and worldwide availability, and save the review contact. These controls are not exposed by the current public API.
+2. **Finish the review contact.** Apple requires a phone number for the private App Review and TestFlight review contact. The email is `contact@foliohtml.com`; a phone number still needs to be supplied.
+3. **Run current physical-device QA.** Re-test two through five fingers, late joiners, finger removal, replay, background/foreground reset, audio, and native haptics on at least one current iPhone. Simulator and desktop browsers cannot validate true multi-touch or Taptic behavior.
+4. **Approve submission.** The final Submit for Review action remains a deliberate owner approval.
 
 ## Current Apple requirements that matter
 
@@ -79,7 +82,7 @@ No, this app does not collect data
 **Support URL**  
 `https://brianrenshaw.github.io/chooser-web-app/support.html`
 
-Those URLs will become live after these web changes are committed and pushed to `main` and the Pages workflow succeeds.
+All three URLs are live on GitHub Pages and return HTTP 200.
 
 ## Suggested App Review notes
 
@@ -96,8 +99,8 @@ Use actual app captures, without Safari chrome:
 
 ## Shortest path from here
 
-1. Sign in to App Store Connect and create the prepared iOS app record.
-2. Deploy the Pages update so the privacy and support URLs are live.
-3. Run physical-device QA and capture the real screenshots.
-4. Rebuild from the final committed tree and upload build 1 to TestFlight.
-5. Test the processed TestFlight build, complete metadata/privacy/age rating, and submit.
+1. Sign in to App Store Connect and complete the remaining UI-only privacy, pricing, availability, and phone fields.
+2. Install and test the processed TestFlight build on a physical iPhone.
+3. Review the finished product page and approve the final Submit for Review action.
+
+Apple accepted build 1 with no errors and one forward-looking warning: beginning in spring 2027, new uploads must target iOS 15 or later. Version 1.0 currently supports iOS 14 and remains valid for submission in 2026.

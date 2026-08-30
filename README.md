@@ -6,7 +6,7 @@ The same framework-free source in `web/` runs as a [live browser app](https://br
 
 ## Current status
 
-The picker is functional, the web version is deployed, and the iOS Debug, Release, signed archive, and App Store IPA export pass with Xcode 26.6. The paid-team bundle ID and provisioning profiles are configured. The App Store Connect record exists; release metadata, screenshots, and the first TestFlight upload are in progress.
+The picker is functional, the web version is deployed, and the iOS Debug, Release, signed archive, App Store export, and Apple package validation pass with Xcode 26.6. App Store Connect has the English listing, age rating, Utilities category, four 6.9-inch screenshots, and a valid TestFlight 1.0 (build 1). Final owner-only App Store Connect confirmations and physical-device QA remain before submission.
 
 See [App Store readiness](docs/app-store-readiness.md) for the completed work, remaining decisions, draft listing copy, and exact submission path.
 
