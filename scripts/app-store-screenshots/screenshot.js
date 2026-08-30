@@ -1,7 +1,7 @@
 (() => {
   const slides = {
     everyone: {
-      headline: 'Everyone puts a finger in.',
+      headline: 'Everyone touches the iPhone with one finger.',
       subhead: 'One phone. One shared moment. No setup.',
       hint: '',
       rings: [

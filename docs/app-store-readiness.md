@@ -20,19 +20,19 @@ The intended product remains deliberately narrow: choose one person to go first.
 | Signing | Valid Apple Development and Apple Distribution identities plus development and App Store profiles for team `2LZJMJR6V8` |
 | Apple registration | `com.brianrenshaw.fingerchooser` is registered under paid team `2LZJMJR6V8` |
 | Branding | Neon-ring native icon, touch icon, and black launch screen replace Capacitor defaults |
-| Privacy | No accounts, ads, analytics, tracking, storage, or network calls; app privacy manifest declares no collection |
+| Privacy | No accounts, ads, analytics, tracking, storage, or network calls; app privacy manifest declares no collection and “Data Not Collected” is published in App Store Connect |
 | Public pages | Privacy and support are live on GitHub Pages and list `contact@foliohtml.com` |
 | In-app disclosure | Help/About dialog links to privacy and support from the main screen |
 | Dependencies | Production and full npm audits report zero known vulnerabilities |
 | App Store listing | Name, subtitle, description, promotional text, keywords, URLs, copyright, content rights, category, and screenshots are populated |
+| Pricing and availability | Free in all 175 storefronts; Mac and Apple Vision Pro compatibility distribution disabled for an iPhone-only release |
+| Review contact | Private App Review and TestFlight contact details are complete in App Store Connect |
 | TestFlight | 1.0 (build 1) uploaded, processed as `VALID`, export compliance recognized as false, and “What to Test” populated |
 
 ## What still blocks submission
 
-1. **Complete the UI-only App Store confirmations.** In App Store Connect, publish “No, we do not collect data,” confirm Free pricing and worldwide availability, and save the review contact. These controls are not exposed by the current public API.
-2. **Finish the review contact.** Apple requires a phone number for the private App Review and TestFlight review contact. The email is `contact@foliohtml.com`; a phone number still needs to be supplied.
-3. **Run current physical-device QA.** Re-test two through five fingers, late joiners, finger removal, replay, background/foreground reset, audio, and native haptics on at least one current iPhone. Simulator and desktop browsers cannot validate true multi-touch or Taptic behavior.
-4. **Approve submission.** The final Submit for Review action remains a deliberate owner approval.
+1. **Run current physical-device QA.** Re-test two through five fingers, late joiners, finger removal, replay, background/foreground reset, audio, and native haptics on at least one current iPhone. Simulator and desktop browsers cannot validate true multi-touch or Taptic behavior.
+2. **Approve submission.** The final Submit for Review action remains a deliberate owner approval.
 
 ## Current Apple requirements that matter
 
@@ -92,15 +92,14 @@ All three URLs are live on GitHub Pages and return HTTP 200.
 
 Use actual app captures, without Safari chrome:
 
-1. **Everyone in** — three or four distinct neon rings; caption: “Everyone puts a finger in.”
+1. **Everyone in** — three or four distinct neon rings; caption: “Everyone touches the iPhone with one finger.”
 2. **Feel the countdown** — active pulsing rings; caption: “Hold on. The tension builds.”
 3. **We have a winner** — one bright winner ring and the replay guidance; caption: “That finger goes first.”
 4. Optional help view — caption: “No setup. No accounts. Just choose.”
 
 ## Shortest path from here
 
-1. Sign in to App Store Connect and complete the remaining UI-only privacy, pricing, availability, and phone fields.
-2. Install and test the processed TestFlight build on a physical iPhone.
-3. Review the finished product page and approve the final Submit for Review action.
+1. Install and test the processed TestFlight build on a physical iPhone.
+2. Review the finished product page and approve the final Submit for Review action.
 
 Apple accepted build 1 with no errors and one forward-looking warning: beginning in spring 2027, new uploads must target iOS 15 or later. Version 1.0 currently supports iOS 14 and remains valid for submission in 2026.

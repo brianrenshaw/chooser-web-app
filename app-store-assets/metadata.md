@@ -84,13 +84,13 @@ Expected rating: 4+
 
 ## Screenshot captions
 
-1. `Everyone puts a finger in.`
+1. `Everyone touches the iPhone with one finger.`
 2. `Hold on. The tension builds.`
 3. `One fair choice. That's who's first.`
 4. `No setup. No accounts. Just choose.`
 
 Screenshots are prepared for the 6.9-inch iPhone portrait slot at 1320 × 2868 pixels.
 
-## Submission-only field still needed
+## Private review contact
 
-Apple requires a phone number for the App Review contact. Do not invent or publish one; add Brian's preferred review-contact number immediately before submission.
+The required App Review and TestFlight contact details are complete in App Store Connect. The private phone number is intentionally not duplicated in this repository.
