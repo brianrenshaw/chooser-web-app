@@ -22,10 +22,11 @@
     <h2>What the app processes</h2>
     <p>In Together, finger locations, temporary pointer identifiers, and ring colors are processed in memory so the app can draw a ring beneath each finger and choose one at random.</p>
     <p>In Tap In, each tap creates a temporary numbered entry with a color, tap position, and internal entry identifier. The number does not identify a person, and the app never asks for a name or contact information. Tap In entries exist only in the running app for the current group. Undo removes the newest entry; Clear and New group remove the group; reloading or closing the app removes everything.</p>
-    <p>None of this temporary interaction data is written to persistent storage or transmitted.</p>
+    <p>In Pinball, temporary seat numbers and tap positions define equal-area regions. The app generates and replays a temporary on-device path, then uses the ball's final position to identify the winning numbered seat. Seats, regions, paths, and results disappear when the app closes.</p>
+    <p>None of this temporary participant or result data is written to persistent storage or transmitted. If you press and hold the mode icon, the native app stores only your preferred launch mode in the iPhone's local preferences. It does not store participant data or choice history.</p>
 
     <h2>On-device features</h2>
-    <p>Random selection, numbered-entry management, animation, sound, and haptic feedback happen entirely on your device. The native iOS app uses bundled files and does not contact the developer or any third-party service.</p>
+    <p>Random selection, numbered-entry management, Pinball geometry and path calculation, animation, sound, and haptic feedback happen entirely on your device. The native iOS app uses bundled files and does not contact the developer or any third-party service.</p>
 
     <h2>Data sharing and retention</h2>
     <p>Because the app does not collect data, it has nothing to share, sell, retain, or delete. Who's First? does not use advertising identifiers or track activity across other apps or websites.</p>

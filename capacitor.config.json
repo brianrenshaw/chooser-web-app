@@ -1,9 +1,0 @@
-{
-  "appId": "com.brianrenshaw.fingerchooser",
-  "appName": "Who's First?",
-  "webDir": "web",
-  "ios": {
-    "contentInset": "always"
-  },
-  "backgroundColor": "#000000"
-}
