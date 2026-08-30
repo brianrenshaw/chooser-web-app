@@ -1,14 +1,36 @@
 (() => {
   const slides = {
     everyone: {
-      headline: 'Everyone touches the iPhone with one finger.',
-      subhead: 'One phone. One shared moment. No setup.',
+      headline: 'Use one finger to touch the iPhone.',
+      subhead: 'Everyone joins the same quick, shared choice.',
       hint: '',
       rings: [
         [28, 28, '#35e8ff'],
         [72, 32, '#ff3bd4'],
         [32, 69, '#adff32'],
         [72, 73, '#a988ff'],
+      ],
+    },
+    'tap-in': {
+      headline: 'Big group? Take turns tapping.',
+      subhead: 'Each player taps once. Then pick from the full group.',
+      hint: '',
+      tapIn: true,
+      count: 12,
+      guidance: 'Keep tapping, or pick when ready.',
+      rings: [
+        [24, 20, '#35e8ff', 'raffle', '1'],
+        [50, 20, '#ff3bd4', 'raffle', '2'],
+        [76, 20, '#adff32', 'raffle', '3'],
+        [24, 36, '#a988ff', 'raffle', '4'],
+        [50, 36, '#ffb23f', 'raffle', '5'],
+        [76, 36, '#35e8ff', 'raffle', '6'],
+        [24, 52, '#ff3bd4', 'raffle', '7'],
+        [50, 52, '#adff32', 'raffle', '8'],
+        [76, 52, '#a988ff', 'raffle', '9'],
+        [24, 68, '#ffb23f', 'raffle', '10'],
+        [50, 68, '#35e8ff', 'raffle', '11'],
+        [76, 68, '#ff3bd4', 'raffle', '12'],
       ],
     },
     countdown: {
@@ -51,13 +73,25 @@
   document.getElementById('app-hint').textContent = slide.hint;
 
   const ringContainer = document.getElementById('rings');
-  for (const [x, y, color, className = ''] of slide.rings) {
+  for (const [x, y, color, className = '', label = ''] of slide.rings) {
     const ring = document.createElement('div');
     ring.className = `ring ${className}`.trim();
     ring.style.left = `${x}%`;
     ring.style.top = `${y}%`;
     ring.style.setProperty('--color', color);
+    ring.textContent = label;
     ringContainer.appendChild(ring);
+  }
+
+  const modeToggle = document.getElementById('mode-toggle');
+  modeToggle.setAttribute('aria-pressed', String(Boolean(slide.tapIn)));
+
+  if (slide.tapIn) {
+    const count = slide.count ?? slide.rings.length;
+    document.getElementById('tap-in-dock').hidden = false;
+    document.getElementById('player-count').textContent = `${count} players in`;
+    document.getElementById('tap-in-guidance').textContent = slide.guidance;
+    document.getElementById('pick-entry').textContent = `Pick from ${count}`;
   }
 
   if (slide.about) document.getElementById('about-card').hidden = false;

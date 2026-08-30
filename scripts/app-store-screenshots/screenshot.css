@@ -5,6 +5,8 @@
 
 * { box-sizing: border-box; }
 
+[hidden] { display: none !important; }
+
 html,
 body {
   width: 1320px;
@@ -129,6 +131,114 @@ h1 {
   text-align: center;
 }
 
+.app-chrome {
+  position: absolute;
+  z-index: 4;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: 184px;
+  pointer-events: none;
+}
+
+.mode-toggle,
+.info-button {
+  pointer-events: auto;
+}
+
+.mode-toggle {
+  position: absolute;
+  top: 62px;
+  left: 42px;
+  display: grid;
+  place-items: center;
+  width: 96px;
+  height: 88px;
+  padding: 0;
+  overflow: hidden;
+  border: 2px solid rgba(255, 255, 255, 0.14);
+  border-radius: 34px;
+  background: rgba(24, 24, 28, 0.76);
+  box-shadow: 0 14px 48px rgba(0, 0, 0, 0.32);
+  color: rgba(255, 255, 255, 0.88);
+}
+
+.mode-toggle::after {
+  position: absolute;
+  inset: 12px;
+  border-radius: 24px;
+  content: "";
+  opacity: 0;
+  background: radial-gradient(circle at 50% 45%, rgba(97, 234, 255, 0.13), transparent 68%);
+}
+
+.mode-toggle[aria-pressed="true"] {
+  border-color: rgba(97, 234, 255, 0.34);
+  background: rgba(22, 35, 39, 0.82);
+  box-shadow: 0 14px 52px rgba(34, 210, 228, 0.15);
+}
+
+.mode-toggle[aria-pressed="true"]::after { opacity: 1; }
+
+.mode-toggle-icon {
+  position: relative;
+  z-index: 1;
+  width: 64px;
+  height: 64px;
+  overflow: visible;
+}
+
+.mode-icon-together,
+.mode-icon-tap-in {
+  transform-origin: 20px 20px;
+}
+
+.mode-icon-together { opacity: 1; }
+.mode-icon-tap-in { opacity: 0; }
+.mode-toggle[aria-pressed="true"] .mode-icon-together { opacity: 0; }
+.mode-toggle[aria-pressed="true"] .mode-icon-tap-in { opacity: 1; }
+
+.mode-orbit,
+.mode-token-trail {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.3);
+  stroke-width: 1.35;
+  stroke-linecap: round;
+  stroke-dasharray: 2 3;
+}
+
+.mode-dot {
+  stroke: rgba(255, 255, 255, 0.9);
+  stroke-width: 1;
+}
+
+.mode-dot-a { fill: #ffca54; }
+.mode-dot-b { fill: #ff5aa9; }
+.mode-dot-c { fill: #59e8ff; }
+
+.mode-spark {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.86);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+}
+
+.mode-token circle {
+  fill: #101619;
+  stroke: #61eaff;
+  stroke-width: 1.5;
+}
+
+.mode-token text {
+  fill: #fff;
+  font: 800 7px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  text-anchor: middle;
+}
+
+.mode-token-one circle { stroke: #ffca54; }
+.mode-token-two circle { stroke: #ff5aa9; }
+.mode-token-three circle { stroke: #59e8ff; }
+
 .info-button {
   position: absolute;
   z-index: 4;
@@ -143,6 +253,13 @@ h1 {
   font-size: 39px;
 }
 
+.slide-everyone .app-chrome,
+.slide-countdown .app-chrome,
+.slide-winner .app-chrome,
+.slide-about .app-chrome {
+  display: none;
+}
+
 .ring {
   --color: #35e8ff;
   position: absolute;
@@ -152,6 +269,84 @@ h1 {
   border: 8px solid var(--color);
   border-radius: 50%;
   box-shadow: 0 0 36px var(--color), inset 0 0 23px color-mix(in srgb, var(--color) 72%, transparent);
+}
+
+.ring.raffle {
+  display: grid;
+  place-items: center;
+  width: 178px;
+  height: 178px;
+  border-width: 7px;
+  color: #fff;
+  font-size: 52px;
+  font-weight: 800;
+  line-height: 1;
+  text-shadow: 0 2px 12px #000;
+  box-shadow:
+    0 0 34px 5px var(--color),
+    inset 0 0 27px 2px color-mix(in srgb, var(--color) 72%, transparent);
+}
+
+.slide-tap-in .app-hint { display: none; }
+
+.tap-in-dock {
+  position: absolute;
+  z-index: 4;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  display: grid;
+  gap: 26px;
+  padding: 30px 32px 28px;
+  border-top: 2px solid rgba(255, 255, 255, 0.12);
+  background: rgba(12, 12, 15, 0.94);
+  box-shadow: 0 -28px 88px rgba(0, 0, 0, 0.54);
+}
+
+.tap-in-copy { text-align: center; }
+
+.player-count {
+  margin: 0;
+  color: #fff;
+  font-size: 40px;
+  font-weight: 750;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+}
+
+.tap-in-guidance {
+  margin: 10px 0 0;
+  color: rgba(255, 255, 255, 0.56);
+  font-size: 28px;
+  line-height: 1.35;
+}
+
+.tap-actions {
+  display: grid;
+  grid-template-columns: minmax(144px, 0.72fr) minmax(144px, 0.72fr) minmax(276px, 1.6fr);
+  gap: 20px;
+}
+
+.primary-action,
+.secondary-action {
+  min-height: 96px;
+  padding: 0 28px;
+  border-radius: 30px;
+  font-size: 32px;
+  font-weight: 700;
+}
+
+.primary-action {
+  border: 2px solid rgba(97, 234, 255, 0.72);
+  background: #61eaff;
+  color: #031013;
+  box-shadow: 0 0 48px rgba(53, 232, 255, 0.22);
+}
+
+.secondary-action {
+  border: 2px solid rgba(255, 255, 255, 0.17);
+  background: rgba(255, 255, 255, 0.075);
+  color: rgba(255, 255, 255, 0.82);
 }
 
 .slide-countdown .ring {

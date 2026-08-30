@@ -5,9 +5,11 @@
 
 ## Why This Exists
 
-A group of people often needs to randomly pick one person to "go first" — for chores, games, decisions, anything. Coin flips only handle two people, drawing straws needs straws, and counting-out rhymes have a deterministic flaw. Phone-based "decide who's first" apps usually feel slow, ad-stuffed, or take a screen tap rather than a real physical commitment from each player.
+A group of people often needs to randomly pick one person to "go first" — for chores, games, decisions, anything. Coin flips only handle two people, drawing straws needs straws, and counting-out rhymes have a deterministic flaw. Phone-based "decide who's first" apps often feel slow, ad-stuffed, or force one interaction style on every group.
 
-This project is a single-page mobile web app that does one thing: every person puts a finger on the phone screen, the app waits a moment for stragglers, runs a tension-building countdown, then picks one finger at random and lights it up. The black background, glowing neon rings, and escalating haptic feedback turn what could be a boring random-int call into a small ritual.
+This project is a single-page mobile web app that does one thing: choose who goes first. Together preserves the original ritual—everyone holds a finger on the screen, the app waits for stragglers, runs a tension-building countdown, then lights up one finger. Tap In supports groups that cannot all touch at once: each person taps once to create a numbered entry, then the group explicitly starts the pick. Both modes use the same black background, glowing neon language, escalating feedback, and fair on-device random selection.
+
+The interface uses one compact, whimsical icon toggle in the upper-left rather than a persistent segmented control. In Together it shows the orbit-and-fingers artwork; in Tap In it becomes a trail of numbered tokens. The accessible label and tooltip describe the mode the control will switch to, and the toggle is disabled during a countdown.
 
 The same code is wrapped with Capacitor into a native iOS app so the chooser can use the iPhone's real Taptic Engine for haptics, which the web platform does not expose on iOS Safari.
 
@@ -25,7 +27,7 @@ The web bundle is the single source of truth. `npx cap sync ios` copies `web/*` 
 
 This is an interactive UI, not a data pipeline, so there are no output files in the data sense. The "outputs" are runtime artifacts:
 
-The following table describes the runtime UI states.
+The following table describes Together's runtime UI states. Every fresh launch starts in Together.
 
 | State | Visible result |
 |---|---|
@@ -34,10 +36,19 @@ The following table describes the runtime UI states.
 | `COUNTDOWN` | Same rings, pulse rate accelerates from 1200ms period down to 150ms over `COUNTDOWN_MS`. |
 | `REVEALED` | One ring scales to 1.5x, brightens, and holds. The other rings fade to opacity 0. |
 
+Tap In has a separate, sequential flow:
+
+| Phase | Visible result |
+|---|---|
+| Collecting | Each completed tap adds the next numbered, colored ring to a deterministic centered grid. Ring size begins shrinking after five entries so the layout can support up to 50. |
+| Ready | With at least two committed entries and no tap in progress, the control reads `Pick from N`. Undo removes the newest entry; Clear requires confirmation. |
+| Countdown | The button snapshots the current group and immediately starts the shared one-second countdown; Tap In does not use Together's 1.5-second settling wait. |
+| Revealed | One number glows as the winner. Pick again draws from the same pool, where repeats are allowed; New group clears every entry and remains in Tap In. |
+
 The deployed artifacts are:
 
 *   `https://brianrenshaw.github.io/chooser-web-app/` — the live web app
-*   `ios/App/App.xcworkspace` — the native iOS Xcode workspace, signed and run on a physical iPhone via free Apple ID
+*   `ios/App/App.xcworkspace` — the native iOS Xcode workspace used for physical-device, archive, and App Store builds
 
 ## How the Automation Works
 
@@ -60,9 +71,9 @@ Management URLs:
 
 ## How the Core Logic Works
 
-The whole app is a four-state machine driven by Pointer Events. State transitions, timing, and rendering are all in `web/app.js`.
+The app has two mode-specific flows driven by Pointer Events. State transitions, timing, temporary Tap In entries, and rendering are all in `web/app.js`.
 
-### State machine
+### Together state machine
 
 The four states live in the `STATE` constant at the top of `app.js`. State transitions:
 
@@ -71,7 +82,17 @@ The four states live in the `STATE` constant at the top of `app.js`. State trans
 *   `COUNTDOWN`. `requestAnimationFrame` loop runs for `COUNTDOWN_MS` (1000ms) and accelerates the pulse animation. A new `pointerdown` cancels back to `WAITING` (so latecomers reset the round). A `pointerup` is allowed; the countdown continues with remaining fingers unless the count drops below 2.
 *   `REVEALED`. The winner is picked with an unbiased Web Crypto random index (falling back to `Math.random()` where Web Crypto is unavailable). Winner gets `.winner` class, others get `.loser`. The first new pointerdown clears the displayed result, registers that finger, and starts the next round.
 
-### Why the late-joiner wait
+### Tap In flow and invariants
+
+*   Switching to Tap In begins with an empty group; a fresh app launch still defaults to Together.
+*   Each completed pointer gesture can commit at most one entry. Entries receive sequential numbers from 1 through 50, a color, and a position in the centered grid.
+*   Undo removes only the newest committed entry, so its number is reused by the next tap. Clear requires confirmation. New group clears the entire group without switching back to Together.
+*   Pick is unavailable until at least two entries are committed and no pointer gesture is pending. It snapshots the current group and starts the shared one-second countdown immediately, without the 1.5-second late-joiner wait.
+*   Winner selection uses the same unbiased Web Crypto random-index helper as Together, with the existing `Math.random()` fallback. Pick again selects from the unchanged snapshot, so the same number may win consecutive picks.
+*   Opening Help & About preserves committed Tap In entries. If the page becomes hidden while collecting, only an unfinished pointer gesture is discarded. If it becomes hidden during the countdown, the countdown is cancelled and the committed group returns to collecting.
+*   Tap In has no persistence. Reloading or closing the app discards the group, and the next launch starts in Together.
+
+### Why Together has a late-joiner wait
 
 Without `WAITING`, a slow finger landing 200ms after the round started would not be a fair contender. The 1500ms wait gives everyone a window to commit. Any new finger during the wait restarts the timer, so the round only proceeds once all fingers have been still for the full window.
 
@@ -79,7 +100,7 @@ The earlier spec called for 3000ms here. It was shortened to 1500ms by request b
 
 ### Why pointer events
 
-Touch events (`touchstart`, `touchmove`, `touchend`) work but require a different code path from mouse events and have inconsistent multi-touch semantics across browsers. Pointer Events unify mouse, pen, and touch into one model with a stable `pointerId` per finger, which is exactly the key our `pointers` Map needs. iOS caps simultaneous touches at 5, which is fine for the use case.
+Touch events (`touchstart`, `touchmove`, `touchend`) work but require a different code path from mouse events and have inconsistent multi-touch semantics across browsers. Pointer Events unify mouse, pen, and touch into one model with a stable `pointerId` per finger, which is exactly the key Together's `pointers` Map and Tap In's one-entry-per-gesture guard need. iOS caps simultaneous touches at 5, which limits Together but not Tap In's sequential group of up to 50.
 
 ### Why the golden-angle hue distribution
 
@@ -103,9 +124,11 @@ The following table lists every file that matters for this project.
 
 | File | Location | Purpose |
 |---|---|---|
-| `index.html` | `web/` | Entry point. Viewport/PWA metadata, the `#stage` chooser, and the Help/About dialog. |
-| `app.js` | `web/` | The whole app: state machine, pointer handling, rendering, haptics. |
-| `style.css` | `web/` | Black background, neon ring styles, pulse keyframes, winner/loser transitions. |
+| `index.html` | `web/` | Entry point. Viewport/PWA metadata, the compact Together/Tap In icon toggle, the `#stage` chooser, and the Help/About dialog. |
+| `app.js` | `web/` | The whole app: both mode flows, pointer handling, temporary entries, random selection, rendering, and haptics. |
+| `style.css` | `web/` | Black background, animated mode-toggle artwork, neon ring and numbered-grid styles, pulse keyframes, winner/loser transitions. |
+| `support.html` | `web/` | Public instructions and troubleshooting for Together and Tap In. |
+| `privacy.html` | `web/` | Public policy covering temporary touch and numbered-entry processing. |
 | `icon.svg` | `web/` | Favicon and native-art source. Black square with a gradient neon ring and SVG glow filter. |
 | `apple-touch-icon.png` | `web/` | 180x180 PNG fallback for iOS home screen icon (older iOS does not accept SVG). |
 | `.nojekyll` | `web/` | Tells GitHub Pages not to run Jekyll on the artifact. |
@@ -163,7 +186,7 @@ Serve the web folder over HTTP and open the LAN URL on a phone on the same Wi-Fi
 2.  `python3 -m http.server 8765`
 3.  Find your Mac's LAN IP: `ipconfig getifaddr en0`
 4.  Open `http://<lan-ip>:8765/` on a phone on the same Wi-Fi
-5.  Multi-touch test on a real device. Desktop browsers cannot reproduce real Pointer Events behavior for multi-finger gestures.
+5.  Tap In can be exercised with a mouse or one-finger touch, but Together multi-touch and native haptics must be tested on a real device.
 
 ### Deploy to web (GitHub Pages)
 
@@ -178,7 +201,7 @@ The deploy is automatic on push.
 
 ### Build and run the iOS app
 
-The iOS app is currently sideloaded with a free Apple ID, which limits it to your own device and re-signs every 7 days.
+The iOS project supports local physical-device runs and paid-team App Store distribution. Xcode is set to version 1.0 (build 2) locally. App Store Connect and TestFlight still contain the validated Together-only build 1, so build 2 needs a fresh archive, validation, and upload before the two-mode release can be submitted.
 
 1.  After any change to `web/`, run `npx cap sync ios` from the repo root. This copies `web/` into `ios/App/App/public/` and refreshes plugin registrations.
 2.  Open the Xcode workspace: `npx cap open ios` (or open `ios/App/App.xcworkspace` directly, never the `.xcodeproj`).
@@ -208,7 +231,7 @@ In `web/app.js`, top of the file:
 *   `WAIT_MS` controls the late-joiner window (default 1500ms)
 *   `COUNTDOWN_MS` controls the tension countdown (default 1000ms)
 
-After a result is revealed, the first new pointerdown immediately clears the old result and registers that finger for the next round.
+`WAIT_MS` applies only to Together. Tap In begins the same one-second countdown immediately after an eligible `Pick from N` action. After a Together result is revealed, the first new pointerdown immediately clears the old result and registers that finger for the next round.
 
 After editing, push to deploy the web version, and run `npx cap sync ios` plus a Cmd+R rebuild for the iOS version.
 
@@ -249,6 +272,18 @@ States are string constants in the `STATE` object. To add one:
 3.  Update `handlePointerDown`, `handlePointerEnd` to handle pointer events in that state
 4.  Add transitions from existing states by calling `enterNewState()` where appropriate
 
+### Change Tap In behavior
+
+Keep these product invariants together when modifying Tap In:
+
+*   At most one committed entry per pointer gesture and at most 50 entries per group
+*   Sequential numbering with Undo reusing the removed newest number
+*   Pick enabled only at two or more committed entries with no pending pointer
+*   No settling wait; use a snapshot of the group for the shared one-second countdown
+*   Pick again keeps the pool and allows repeated winners; New group clears the pool and stays in Tap In
+*   Deterministic centered layout, with numbered rings shrinking after five entries
+*   Committed entries survive Help/About but never reload, app close, or New group
+
 ### Change the GitHub Pages deploy schedule
 
 There is no schedule. The workflow runs on push to `main` when `web/**` or the workflow file changes, and on manual `workflow_dispatch`.
@@ -267,7 +302,9 @@ Bundle ID and app name are set in `capacitor.config.json` (`appId`, `appName`). 
 
 *   **Free Apple ID signing has hard limits.** Sideloaded iOS app expires every 7 days, requires reconnecting the phone to the Mac to refresh, and is bound to one device. Sharing the iOS app to other people requires the Apple Developer Program ($99/year) and TestFlight or Ad Hoc distribution.
 
-*   **iOS caps simultaneous touches at 5.** Six fingers will not all register. This is acceptable for the use case but worth knowing.
+*   **iOS caps simultaneous touches at 5.** Six simultaneous fingers will not all register in Together. Tap In is the sequential alternative and supports up to 50 entries.
+
+*   **Tap In state is intentionally temporary.** Numbers are not player profiles. They, their colors, internal identifiers, and tap positions exist only in memory and are never persisted or transmitted.
 
 *   **`pointerleave` was tried and removed.** The earlier version listened for `pointerleave` to clean up off-screen pointers, but it could prematurely remove a finger that dragged near the viewport edge. `pointercancel` is sufficient and behaves correctly.
 
@@ -325,3 +362,4 @@ The following table tracks meaningful changes.
 | 2026-05-02 | Fixed `tick` shadowing bug in `enterCountdown()` (renamed inner rAF callback to `step`). Countdown haptic ticks now actually fire and escalate as designed. |
 | 2026-08-29 | Began App Store readiness pass: fixed Xcode/CocoaPods build setting, updated Capacitor 7, added replay guidance and older-iOS color fallback, added About/Privacy/Support, replaced default native branding, and added privacy/export metadata. |
 | 2026-08-30 | Registered `com.brianrenshaw.fingerchooser` under the paid Apple team, changed v1 to iPhone-only, added the public support email, and verified signed archive plus App Store IPA export. The App Store Connect app record still requires the signed-in New App form. |
+| 2026-08-30 | Implemented Together/Tap In with one compact animated icon toggle, set the Xcode project to build 2, and prepared five 1320×2868 replacement screenshots covering both modes. TestFlight/App Store Connect still show build 1 and its Together-only listing; build 2 still needs archive/upload, listing updates, and fresh device QA before submission. |

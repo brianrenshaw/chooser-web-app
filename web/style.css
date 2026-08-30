@@ -1,14 +1,16 @@
 :root {
   --ring-size: 140px;
-  --ring-hue: 190;
   --pulse-duration: 1200ms;
-  --ring-color: hsl(var(--ring-hue) 100% 60%);
-  --ring-glow: hsl(var(--ring-hue) 100% 70%);
+  --ring-color: hsl(190 100% 60%);
+  --ring-glow: hsl(190 100% 70%);
+  --playfield-center-x: 50vw;
+  --playfield-center-y: 50vh;
 }
 
 * { box-sizing: border-box; }
 
-html, body {
+html,
+body {
   margin: 0;
   padding: 0;
   width: 100%;
@@ -19,39 +21,65 @@ html, body {
   overflow: hidden;
 }
 
+button,
+a {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button {
+  font: inherit;
+}
+
+button:focus-visible,
+a:focus-visible,
+#stage:focus-visible,
+[tabindex="-1"]:focus-visible {
+  outline: 3px solid #61eaff;
+  outline-offset: 3px;
+}
+
+[hidden] {
+  display: none !important;
+}
+
 #stage {
   position: fixed;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  left: 0;
   inset: 0;
+  z-index: 0;
+  overflow: hidden;
   background: #000;
   touch-action: none;
   user-select: none;
   -webkit-user-select: none;
   -webkit-touch-callout: none;
   overscroll-behavior: none;
-  overflow: hidden;
+}
+
+body.mode-tap-in #stage {
+  cursor: pointer;
 }
 
 #hint {
   position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
+  top: var(--playfield-center-y);
+  left: var(--playfield-center-x);
+  width: min(100%, 520px);
   margin: 0;
-  padding: 0 24px;
-  text-align: center;
+  padding: 0 28px;
+  transform: translate(-50%, -50%);
+  color: rgba(255, 255, 255, 0.42);
   font-size: 18px;
-  font-weight: 300;
-  letter-spacing: 0.08em;
-  color: rgba(255, 255, 255, 0.35);
+  font-weight: 350;
+  letter-spacing: 0.06em;
+  line-height: 1.4;
+  text-align: center;
   pointer-events: none;
-  transition: opacity 400ms ease;
+  transition: opacity 220ms ease, color 220ms ease;
 }
 
-#stage.has-fingers #hint {
+#stage.has-fingers #hint,
+#stage.has-raffle-entries #hint,
+#stage.has-pending-entry #hint {
   opacity: 0;
 }
 
@@ -59,16 +87,165 @@ html, body {
   top: auto;
   bottom: calc(28px + env(safe-area-inset-bottom));
   transform: translateX(-50%);
-  font-size: 15px;
   color: rgba(255, 255, 255, 0.58);
+  font-size: 15px;
   opacity: 1;
 }
 
-#info-button {
+body.mode-tap-in #stage.is-revealed #hint {
+  opacity: 0;
+}
+
+.app-chrome {
   position: fixed;
-  top: calc(16px + env(safe-area-inset-top));
-  right: calc(16px + env(safe-area-inset-right));
+  top: 0;
+  right: 0;
+  left: 0;
   z-index: 10;
+  min-height: calc(72px + env(safe-area-inset-top));
+  padding:
+    calc(14px + env(safe-area-inset-top))
+    calc(16px + env(safe-area-inset-right))
+    12px
+    calc(16px + env(safe-area-inset-left));
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-start;
+  pointer-events: auto;
+  transition: opacity 180ms ease;
+}
+
+.mode-toggle {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 44px;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 17px;
+  background: rgba(24, 24, 28, 0.68);
+  color: rgba(255, 255, 255, 0.88);
+  box-shadow: 0 7px 24px rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  touch-action: manipulation;
+  overflow: hidden;
+  transition:
+    background 180ms ease,
+    border-color 180ms ease,
+    box-shadow 180ms ease,
+    transform 120ms ease;
+}
+
+.mode-toggle::after {
+  content: "";
+  position: absolute;
+  inset: 6px;
+  border-radius: 12px;
+  background: radial-gradient(circle at 50% 45%, rgba(97, 234, 255, 0.13), transparent 68%);
+  opacity: 0;
+  transition: opacity 180ms ease;
+}
+
+.mode-toggle:active {
+  transform: scale(0.92) rotate(-3deg);
+}
+
+.mode-toggle[aria-pressed="true"] {
+  border-color: rgba(97, 234, 255, 0.34);
+  background: rgba(22, 35, 39, 0.76);
+  box-shadow: 0 7px 26px rgba(34, 210, 228, 0.11);
+}
+
+.mode-toggle[aria-pressed="true"]::after {
+  opacity: 1;
+}
+
+.mode-toggle:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.mode-toggle-icon {
+  position: relative;
+  z-index: 1;
+  width: 32px;
+  height: 32px;
+  overflow: visible;
+}
+
+.mode-icon-together,
+.mode-icon-tap-in {
+  transform-origin: 20px 20px;
+  transition: opacity 180ms ease, transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.mode-icon-together {
+  opacity: 1;
+  transform: scale(1) rotate(0deg);
+}
+
+.mode-icon-tap-in {
+  opacity: 0;
+  transform: scale(0.65) rotate(-12deg);
+}
+
+.mode-toggle[aria-pressed="true"] .mode-icon-together {
+  opacity: 0;
+  transform: scale(0.65) rotate(12deg);
+}
+
+.mode-toggle[aria-pressed="true"] .mode-icon-tap-in {
+  opacity: 1;
+  transform: scale(1) rotate(0deg);
+}
+
+.mode-orbit,
+.mode-token-trail {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.3);
+  stroke-width: 1.35;
+  stroke-linecap: round;
+  stroke-dasharray: 2 3;
+}
+
+.mode-dot {
+  stroke: rgba(255, 255, 255, 0.9);
+  stroke-width: 1;
+}
+
+.mode-dot-a { fill: #ffca54; }
+.mode-dot-b { fill: #ff5aa9; }
+.mode-dot-c { fill: #59e8ff; }
+
+.mode-spark {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.86);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+}
+
+.mode-token circle {
+  fill: #101619;
+  stroke: #61eaff;
+  stroke-width: 1.5;
+}
+
+.mode-token text {
+  fill: #fff;
+  font: 800 7px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  text-anchor: middle;
+}
+
+.mode-token-one circle { stroke: #ffca54; }
+.mode-token-two circle { stroke: #ff5aa9; }
+.mode-token-three circle { stroke: #59e8ff; }
+
+#info-button {
+  position: absolute;
+  top: calc(14px + env(safe-area-inset-top));
+  right: calc(16px + env(safe-area-inset-right));
   width: 44px;
   height: 44px;
   padding: 0;
@@ -77,8 +254,9 @@ html, body {
   background: rgba(24, 24, 28, 0.76);
   color: rgba(255, 255, 255, 0.72);
   font: 500 20px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
-  -webkit-tap-highlight-color: transparent;
   backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  touch-action: manipulation;
   transition: opacity 180ms ease, border-color 180ms ease, color 180ms ease;
 }
 
@@ -87,20 +265,128 @@ html, body {
   border-color: rgba(255, 255, 255, 0.42);
 }
 
-#stage.has-fingers + #info-button,
-body.about-open #info-button {
+body.mode-together.interaction-active .app-chrome,
+body.about-open .app-chrome,
+body.confirm-open .app-chrome {
   opacity: 0;
   pointer-events: none;
 }
 
-.about-backdrop {
+body.countdown-active #info-button {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.tap-in-dock {
   position: fixed;
-  top: 0;
   right: 0;
   bottom: 0;
   left: 0;
+  z-index: 10;
+  display: grid;
+  gap: 13px;
+  padding:
+    15px
+    calc(16px + env(safe-area-inset-right))
+    calc(14px + env(safe-area-inset-bottom))
+    calc(16px + env(safe-area-inset-left));
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(12, 12, 15, 0.9);
+  box-shadow: 0 -14px 44px rgba(0, 0, 0, 0.48);
+  backdrop-filter: blur(22px);
+  -webkit-backdrop-filter: blur(22px);
+  transition: opacity 180ms ease;
+}
+
+body.about-open .tap-in-dock,
+body.confirm-open .tap-in-dock {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.tap-in-copy {
+  min-height: 47px;
+  text-align: center;
+}
+
+.player-count,
+.tap-in-result {
+  margin: 0;
+  color: #fff;
+  font-size: 20px;
+  font-weight: 750;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+}
+
+.tap-in-guidance {
+  min-height: 20px;
+  margin: 5px 0 0;
+  color: rgba(255, 255, 255, 0.54);
+  font-size: 14px;
+  line-height: 1.35;
+}
+
+.tap-in-result {
+  font-size: 23px;
+}
+
+.tap-actions {
+  display: grid;
+  grid-template-columns: minmax(72px, 0.72fr) minmax(72px, 0.72fr) minmax(138px, 1.6fr);
+  gap: 10px;
+  width: min(100%, 560px);
+  margin: 0 auto;
+}
+
+.tap-actions.result-actions {
+  grid-template-columns: minmax(150px, 1.35fr) minmax(118px, 1fr);
+}
+
+.primary-action,
+.secondary-action,
+.danger-action {
+  min-width: 44px;
+  min-height: 48px;
+  padding: 0 16px;
+  border-radius: 15px;
+  font-size: 16px;
+  font-weight: 700;
+  touch-action: manipulation;
+}
+
+.primary-action {
+  border: 1px solid rgba(97, 234, 255, 0.72);
+  background: #61eaff;
+  color: #031013;
+  box-shadow: 0 0 24px rgba(53, 232, 255, 0.2);
+}
+
+.secondary-action {
+  border: 1px solid rgba(255, 255, 255, 0.17);
+  background: rgba(255, 255, 255, 0.075);
+  color: rgba(255, 255, 255, 0.82);
+}
+
+.danger-action {
+  border: 1px solid rgba(255, 93, 116, 0.62);
+  background: #df3d58;
+  color: #fff;
+}
+
+.primary-action:disabled,
+.secondary-action:disabled,
+.danger-action:disabled {
+  border-color: rgba(255, 255, 255, 0.09);
+  background: rgba(255, 255, 255, 0.055);
+  color: rgba(255, 255, 255, 0.27);
+  box-shadow: none;
+}
+
+.modal-backdrop {
+  position: fixed;
   inset: 0;
-  z-index: 20;
+  z-index: 30;
   display: grid;
   place-items: center;
   padding:
@@ -108,25 +394,49 @@ body.about-open #info-button {
     calc(20px + env(safe-area-inset-right))
     calc(24px + env(safe-area-inset-bottom))
     calc(20px + env(safe-area-inset-left));
-  background: rgba(0, 0, 0, 0.72);
+  background: rgba(0, 0, 0, 0.74);
   backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
 }
 
-.about-backdrop[hidden] {
-  display: none;
-}
-
-.about-dialog {
+.about-dialog,
+.confirm-dialog {
   position: relative;
   width: min(100%, 420px);
   max-height: 100%;
   overflow-y: auto;
-  padding: 34px 28px 24px;
   border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: 28px;
   outline: none;
-  background: rgba(24, 24, 28, 0.96);
+  background: rgba(24, 24, 28, 0.98);
   box-shadow: 0 24px 80px rgba(0, 0, 0, 0.62);
+}
+
+.about-dialog {
+  padding: 34px 28px 24px;
+}
+
+.confirm-dialog {
+  padding: 28px;
+}
+
+.confirm-dialog h1 {
+  margin: 0;
+  font-size: 24px;
+  letter-spacing: -0.025em;
+}
+
+.confirm-dialog p {
+  margin: 12px 0 26px;
+  color: rgba(255, 255, 255, 0.66);
+  font-size: 16px;
+  line-height: 1.45;
+}
+
+.confirm-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
 }
 
 .close-button {
@@ -182,6 +492,12 @@ body.about-open #info-button {
   font-weight: 700;
 }
 
+.tap-in-note {
+  margin: -8px 0 20px;
+  color: rgba(255, 255, 255, 0.56);
+  font-size: 14px;
+}
+
 .on-device-note {
   margin: 0;
   padding: 16px;
@@ -212,19 +528,72 @@ body.about-open #info-button {
 
 .ring {
   position: absolute;
+  left: 0;
+  top: 0;
+  border-radius: 50%;
+  border-style: solid;
+  border-color: var(--ring-color);
+  pointer-events: none;
+  will-change: left, top, width, height, transform, opacity;
+}
+
+.finger-ring {
   width: var(--ring-size);
   height: var(--ring-size);
   margin-left: calc(var(--ring-size) / -2);
   margin-top: calc(var(--ring-size) / -2);
-  border-radius: 50%;
-  border: 3px solid var(--ring-color);
+  border-width: 3px;
   box-shadow:
     0 0 24px 4px var(--ring-glow),
     inset 0 0 24px 2px var(--ring-glow);
-  pointer-events: none;
-  will-change: transform, opacity;
   animation: pulse var(--pulse-duration) ease-in-out infinite;
   transition: opacity 250ms ease, transform 350ms cubic-bezier(0.2, 0.8, 0.2, 1.2), filter 350ms ease;
+}
+
+.raffle-ring {
+  --raffle-size: 140px;
+  --raffle-stroke: 3px;
+  --raffle-glow: 24px;
+  --raffle-font-size: 32px;
+  display: grid;
+  place-items: center;
+  width: var(--raffle-size);
+  height: var(--raffle-size);
+  margin-left: calc(var(--raffle-size) / -2);
+  margin-top: calc(var(--raffle-size) / -2);
+  border-width: var(--raffle-stroke);
+  box-shadow:
+    0 0 var(--raffle-glow) max(2px, calc(var(--raffle-glow) / 6)) var(--ring-glow),
+    inset 0 0 var(--raffle-glow) 1px var(--ring-glow);
+  color: #fff;
+  font-size: var(--raffle-font-size);
+  font-weight: 800;
+  line-height: 1;
+  text-shadow: 0 1px 6px #000;
+  transition:
+    left 230ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    top 230ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    width 230ms ease,
+    height 230ms ease,
+    margin 230ms ease,
+    border-width 230ms ease,
+    box-shadow 230ms ease,
+    font-size 230ms ease,
+    opacity 250ms ease,
+    filter 250ms ease;
+}
+
+.raffle-ring.raffle-pending {
+  --raffle-size: 104px;
+  --raffle-stroke: 3px;
+  --raffle-glow: 24px;
+  border-style: dashed;
+  opacity: 0.82;
+  animation: provisional-pulse 800ms ease-in-out infinite;
+}
+
+body.countdown-active .raffle-ring:not(.raffle-pending) {
+  animation: pulse var(--pulse-duration) ease-in-out infinite;
 }
 
 @keyframes pulse {
@@ -238,31 +607,118 @@ body.about-open #info-button {
   }
 }
 
-.ring.winner {
+@keyframes provisional-pulse {
+  0%, 100% { transform: scale(0.92); opacity: 0.72; }
+  50% { transform: scale(1); opacity: 1; }
+}
+
+.finger-ring.winner {
+  z-index: 2;
+  border-width: 4px;
   animation: none;
   transform: scale(1.5);
   filter: brightness(1.8) saturate(1.3);
-  border-width: 4px;
   box-shadow:
     0 0 60px 12px var(--ring-glow),
     inset 0 0 40px 4px var(--ring-glow);
-  z-index: 2;
 }
 
-.ring.loser {
+.finger-ring.loser,
+.raffle-ring.tap-loser {
   opacity: 0;
-  animation: none;
+  animation: none !important;
   filter: brightness(0.4);
 }
 
+.raffle-ring.tap-winner {
+  --raffle-size: 140px;
+  --raffle-stroke: 5px;
+  --raffle-glow: 52px;
+  --raffle-font-size: 42px;
+  z-index: 3;
+  animation: none !important;
+  filter: brightness(1.75) saturate(1.25);
+}
+
+.visually-hidden {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
+@media (orientation: landscape) and (max-height: 520px) {
+  .app-chrome {
+    min-height: calc(62px + env(safe-area-inset-top));
+    padding-top: calc(8px + env(safe-area-inset-top));
+    padding-bottom: 8px;
+  }
+
+  #info-button {
+    top: calc(8px + env(safe-area-inset-top));
+  }
+
+  .tap-in-dock {
+    grid-template-columns: minmax(170px, 0.9fr) minmax(330px, 1.8fr);
+    align-items: center;
+    gap: 16px;
+    padding-top: 9px;
+    padding-bottom: calc(9px + env(safe-area-inset-bottom));
+  }
+
+  .tap-in-copy {
+    min-height: 44px;
+    text-align: left;
+  }
+
+  .tap-actions,
+  .tap-actions.result-actions {
+    width: 100%;
+  }
+
+  .tap-in-guidance {
+    margin-top: 2px;
+    font-size: 13px;
+  }
+
+  .about-dialog {
+    width: min(100%, 560px);
+  }
+}
+
+@media (max-width: 370px) {
+  .tap-actions {
+    gap: 8px;
+  }
+
+  .primary-action,
+  .secondary-action,
+  .danger-action {
+    padding: 0 10px;
+    font-size: 15px;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .ring {
+  .finger-ring,
+  .raffle-ring,
+  body.countdown-active .raffle-ring:not(.raffle-pending) {
     animation: none;
     transition-duration: 0.01ms;
   }
 
   #hint,
-  #info-button {
+  .app-chrome,
+  .mode-toggle,
+  .mode-icon-together,
+  .mode-icon-tap-in,
+  #info-button,
+  .tap-in-dock {
     transition-duration: 0.01ms;
   }
 }
