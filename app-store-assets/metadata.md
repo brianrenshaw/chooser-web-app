@@ -131,7 +131,7 @@ Settle one question without an argument: who goes first?
 
 Pick the way that fits the moment:
 
-• Chooser — everyone holds one finger on the screen at the same time
+• Chooser — everyone places one finger on the screen at once
 • Tap In — each person taps once to join a numbered group of up to 50
 • Pinball — 2–12 people tap near their seats, then someone flicks a ball between clear equal-area dividers
 

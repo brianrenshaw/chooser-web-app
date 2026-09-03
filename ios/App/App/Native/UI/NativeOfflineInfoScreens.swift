@@ -77,10 +77,10 @@ public struct NativeOfflineInformationCopy: Sendable {
                 NativeModeInstructions(
                     id: "together",
                     title: "Chooser",
-                    summary: "Everyone touches the device at the same time.",
+                    summary: "Everyone places one finger on the screen at once.",
                     welcomeLine: "Hold still. The remaining ring is the choice.",
                     steps: [
-                        "Each person touches the iPhone with one finger.",
+                        "Each person places one finger on the iPhone.",
                         "Hold still while the rings build anticipation.",
                         "The remaining ring is the choice."
                     ]
