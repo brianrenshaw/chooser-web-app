@@ -655,9 +655,53 @@ final class PinballMotionAndFairnessTests: XCTestCase {
         XCTAssertNil(scene.childNode(withName: "//bumper-strike:9"))
     }
 
+    /// The whole seat lights, not an outline or a contact arc.
     @MainActor
-    func testIncreasedContrastThickensTheStrikeWithoutChangingItsHue() throws {
-        func strokeWidths(increasedContrast: Bool) throws -> [CGFloat] {
+    func testTheStrikeLightsTheEntireRingNotAnArc() throws {
+        let radius: CGFloat = 5
+        let scene = NativeAnalyticPolylineReplayScene(size: CGSize(width: 40, height: 40))
+        scene.replay(
+            NativeAnalyticReplayPlan(
+                polyline: [
+                    CGPoint(x: 0, y: 0),
+                    CGPoint(x: 10, y: 5),
+                    CGPoint(x: 21, y: 9)
+                ],
+                duration: 1,
+                bumperMarks: [
+                    1: NativeReplayBumperMark(
+                        seatID: 6,
+                        center: CGPoint(x: 10, y: 25),
+                        radius: radius
+                    )
+                ],
+                style: NativeReplayVisualStyle(impactColor: .systemOrange)
+            )
+        )
+        scene.update(10)
+        scene.update(10.6)
+
+        let strike = try XCTUnwrap(scene.childNode(withName: "//bumper-strike:6"))
+        let fill = try XCTUnwrap(
+            strike.childNode(withName: "bumper-strike-fill") as? SKShapeNode
+        )
+
+        // A full disc spans the ring in both axes; an arc would not.
+        let bounds = try XCTUnwrap(fill.path?.boundingBox)
+        XCTAssertEqual(bounds.width, radius * 2, accuracy: 0.5)
+        XCTAssertEqual(bounds.height, radius * 2, accuracy: 0.5)
+        XCTAssertEqual(bounds.midX, 0, accuracy: 0.5)
+        XCTAssertEqual(bounds.midY, 0, accuracy: 0.5)
+
+        // And it is genuinely filled, not just stroked.
+        var fillAlpha: CGFloat = 0
+        fill.fillColor.getRed(nil, green: nil, blue: nil, alpha: &fillAlpha)
+        XCTAssertGreaterThan(fillAlpha, 0.3)
+    }
+
+    @MainActor
+    func testIncreasedContrastThickensTheStrikeRimWithoutChangingItsHue() throws {
+        func rim(increasedContrast: Bool) throws -> SKShapeNode {
             let scene = NativeAnalyticPolylineReplayScene(size: CGSize(width: 40, height: 40))
             scene.replay(
                 NativeAnalyticReplayPlan(
@@ -683,16 +727,69 @@ final class PinballMotionAndFairnessTests: XCTestCase {
             scene.update(10)
             scene.update(10.6)
             let strike = try XCTUnwrap(scene.childNode(withName: "//bumper-strike:1"))
-            return strike.children.compactMap { ($0 as? SKShapeNode)?.lineWidth }
+            return try XCTUnwrap(
+                strike.childNode(withName: "bumper-strike-rim") as? SKShapeNode
+            )
         }
 
-        let plain = try strokeWidths(increasedContrast: false)
-        let contrasted = try strokeWidths(increasedContrast: true)
-        XCTAssertEqual(plain.count, contrasted.count)
-        XCTAssertFalse(plain.isEmpty)
-        for (plainWidth, contrastedWidth) in zip(plain, contrasted) {
-            XCTAssertGreaterThan(contrastedWidth, plainWidth)
+        let plain = try rim(increasedContrast: false)
+        let contrasted = try rim(increasedContrast: true)
+        XCTAssertGreaterThan(contrasted.lineWidth, plain.lineWidth)
+        // Contrast thickens structure and firms up its edge opacity, but never
+        // recolors it. Compare hue alone; alpha is expected to rise.
+        var plainRGB = (CGFloat(0), CGFloat(0), CGFloat(0), CGFloat(0))
+        var contrastedRGB = (CGFloat(0), CGFloat(0), CGFloat(0), CGFloat(0))
+        plain.strokeColor.getRed(&plainRGB.0, green: &plainRGB.1, blue: &plainRGB.2, alpha: &plainRGB.3)
+        contrasted.strokeColor.getRed(
+            &contrastedRGB.0, green: &contrastedRGB.1, blue: &contrastedRGB.2, alpha: &contrastedRGB.3
+        )
+        XCTAssertEqual(plainRGB.0, contrastedRGB.0, accuracy: 1e-9)
+        XCTAssertEqual(plainRGB.1, contrastedRGB.1, accuracy: 1e-9)
+        XCTAssertEqual(plainRGB.2, contrastedRGB.2, accuracy: 1e-9)
+        XCTAssertGreaterThanOrEqual(contrastedRGB.3, plainRGB.3)
+    }
+
+    /// Reduce Transparency means less see-through, so the wash gets denser.
+    @MainActor
+    func testReduceTransparencyMakesTheStrikeDenserNotFainter() throws {
+        func fillAlpha(reduceTransparency: Bool) throws -> CGFloat {
+            let scene = NativeAnalyticPolylineReplayScene(size: CGSize(width: 40, height: 40))
+            scene.replay(
+                NativeAnalyticReplayPlan(
+                    polyline: [
+                        CGPoint(x: 0, y: 0),
+                        CGPoint(x: 10, y: 5),
+                        CGPoint(x: 21, y: 9)
+                    ],
+                    duration: 1,
+                    bumperMarks: [
+                        1: NativeReplayBumperMark(
+                            seatID: 1,
+                            center: CGPoint(x: 10, y: 25),
+                            radius: 5
+                        )
+                    ],
+                    style: NativeReplayVisualStyle(
+                        impactColor: .systemOrange,
+                        reducesTransparency: reduceTransparency
+                    )
+                )
+            )
+            scene.update(10)
+            scene.update(10.6)
+            let strike = try XCTUnwrap(scene.childNode(withName: "//bumper-strike:1"))
+            let fill = try XCTUnwrap(
+                strike.childNode(withName: "bumper-strike-fill") as? SKShapeNode
+            )
+            var alpha: CGFloat = 0
+            fill.fillColor.getRed(nil, green: nil, blue: nil, alpha: &alpha)
+            return alpha
         }
+
+        XCTAssertGreaterThan(
+            try fillAlpha(reduceTransparency: true),
+            try fillAlpha(reduceTransparency: false)
+        )
     }
 
     @MainActor

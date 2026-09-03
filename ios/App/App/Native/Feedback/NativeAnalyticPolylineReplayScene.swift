@@ -1450,23 +1450,6 @@ public final class NativeAnalyticPolylineReplayScene: SKScene {
         }
     }
 
-    /// The authored scale-in / fade-out ring pulse, shared by the winner flash
-    /// and the bumper strike. One pulse, two schedules: the winner flash fires
-    /// on wall-clock delays after the run, while a strike is triggered by the
-    /// render pass at the contact frame.
-    private static func ringPulseAction() -> SKAction {
-        SKAction.sequence([
-            SKAction.group([
-                SKAction.fadeAlpha(to: 0.95, duration: 0.05),
-                SKAction.scale(to: 0.28, duration: 0)
-            ]),
-            SKAction.group([
-                SKAction.scale(to: 1.25, duration: 0.24),
-                SKAction.fadeOut(withDuration: 0.24)
-            ])
-        ])
-    }
-
     /// The compression axis for a contact normal, in the vocabulary
     /// `squashPearl` already understands.
     private static func dominantAxisEdges(for normal: CGVector) -> Set<PolylineImpactEdge> {
@@ -1476,15 +1459,20 @@ public final class NativeAnalyticPolylineReplayScene: SKScene {
         return [normal.dy > 0 ? .top : .bottom]
     }
 
-    /// Lights the struck seat ring on the frame the contact is drawn.
+    /// Lights the whole struck seat ring on the frame the contact is drawn.
     ///
-    /// Runs from the render pass, so the ring appears in the very frame that
+    /// The entire disc lights, not an outline or a contact arc: a seat is a
+    /// solid game piece and reads as one thing being hit. During flight the
+    /// chits are receded to 0.22 opacity, so the strike has to restore the
+    /// piece to full presence to register at all.
+    ///
+    /// Runs from the render pass, so the light appears in the very frame that
     /// draws the ball at the vertex — the same discipline the endpoint settle
     /// uses to keep its cue from arriving after the rebound.
     ///
     /// Hue does no work here. What separates a seat strike from a wall mark is
-    /// position (at a ring, not the border), shape (a closed ring plus a contact
-    /// arc, not a line), and motion (a radial pulse, not a fade).
+    /// position (on a ring, not the border), extent (a filled disc, not a line),
+    /// and motion (a bloom and decay, not a fade).
     private func showBumperStrike(_ bumper: PolylineBumperContact) {
         guard let style = rawPlan?.style else { return }
         let policy = BoardAccessibilityAppearancePolicy(
@@ -1504,41 +1492,50 @@ public final class NativeAnalyticPolylineReplayScene: SKScene {
         node.zPosition = 4
         node.alpha = 0
 
-        let lineWidth = 2.4 * policy.edgeWidthMultiplier
-        let strokeAlpha = min(1, 0.78 * policy.edgeOpacityMultiplier)
+        // Reduce Transparency means less see-through, so the wash gets denser
+        // rather than thinner.
+        let fillAlpha = policy.reduceTransparency ? 0.88 : 0.58
+        let fill = SKShapeNode(circleOfRadius: bumper.radius)
+        fill.name = "bumper-strike-fill"
+        fill.fillColor = style.impactColor.withAlphaComponent(fillAlpha)
+        fill.strokeColor = .clear
+        fill.lineWidth = 0
+        fill.glowWidth = 0
+        node.addChild(fill)
 
-        let ring = SKShapeNode(circleOfRadius: bumper.radius)
-        ring.strokeColor = style.impactColor.withAlphaComponent(strokeAlpha)
-        ring.lineWidth = lineWidth
-        // Reduce Transparency drops the decorative wash and keeps the ring solid.
-        ring.fillColor = policy.reduceTransparency
-            ? .clear
-            : style.impactColor.withAlphaComponent(0.08)
-        ring.glowWidth = 0
-        node.addChild(ring)
+        let rim = SKShapeNode(circleOfRadius: bumper.radius)
+        rim.name = "bumper-strike-rim"
+        rim.fillColor = .clear
+        rim.strokeColor = style.impactColor.withAlphaComponent(
+            min(1, 0.95 * policy.edgeOpacityMultiplier)
+        )
+        rim.lineWidth = 2.6 * policy.edgeWidthMultiplier
+        rim.glowWidth = 0
+        node.addChild(rim)
 
-        // The contact arc says *where* on the ring the ball landed. Under
-        // Differentiate Without Color it is dashed, reusing the winner
-        // contour's shape vocabulary so the cue survives without hue.
-        let contactAngle = atan2(bumper.normal.dy, bumper.normal.dx)
-        let arcPath = CGMutablePath()
-        arcPath.addArc(
-            center: .zero,
-            radius: bumper.radius,
-            startAngle: contactAngle - 0.35,
-            endAngle: contactAngle + 0.35,
-            clockwise: false
-        )
-        let arc = SKShapeNode(
-            path: policy.showsWinnerContour
-                ? arcPath.copy(dashingWithPhase: 0, lengths: [5, 3.4])
-                : arcPath
-        )
-        arc.strokeColor = style.impactColor
-        arc.lineWidth = lineWidth * 1.9
-        arc.lineCap = .round
-        arc.glowWidth = 0
-        node.addChild(arc)
+        // Differentiate Without Color adds a dashed outer contour, the same
+        // shape redundancy the winner ring uses, so the cue survives when hue
+        // is not available to distinguish it.
+        if policy.showsWinnerContour {
+            let contourPath = CGMutablePath()
+            contourPath.addEllipse(
+                in: CGRect(
+                    x: -bumper.radius - 3.5,
+                    y: -bumper.radius - 3.5,
+                    width: (bumper.radius + 3.5) * 2,
+                    height: (bumper.radius + 3.5) * 2
+                )
+            )
+            let contour = SKShapeNode(
+                path: contourPath.copy(dashingWithPhase: 0, lengths: [5, 3.4])
+            )
+            contour.name = "bumper-strike-contour"
+            contour.fillColor = .clear
+            contour.strokeColor = style.impactColor
+            contour.lineWidth = 2 * policy.edgeWidthMultiplier
+            contour.glowWidth = 0
+            node.addChild(contour)
+        }
 
         impactLayer.addChild(node)
 
@@ -1547,13 +1544,27 @@ public final class NativeAnalyticPolylineReplayScene: SKScene {
         if style.reducesMotion {
             node.setScale(1)
             node.run(.sequence([
-                .fadeAlpha(to: 0.95, duration: 0.05),
+                .fadeAlpha(to: 1, duration: 0.04),
                 .wait(forDuration: 0.18),
                 .fadeOut(withDuration: 0.16),
                 .removeFromParent()
             ]))
         } else {
-            node.run(.sequence([Self.ringPulseAction(), .removeFromParent()]))
+            // Blooms at full size and decays. It must not expand from a point
+            // like the winner flash: that reads as a ripple passing through,
+            // not as this piece being struck.
+            node.setScale(0.94)
+            node.run(.sequence([
+                .group([
+                    .fadeAlpha(to: 1, duration: 0.045),
+                    .scale(to: 1.09, duration: 0.045)
+                ]),
+                .group([
+                    .scale(to: 1, duration: 0.28),
+                    .fadeOut(withDuration: 0.28)
+                ]),
+                .removeFromParent()
+            ]))
         }
     }
 
@@ -1571,7 +1582,17 @@ public final class NativeAnalyticPolylineReplayScene: SKScene {
             node.zPosition = 100
             flashLayer.addChild(node)
 
-            let repeated = SKAction.repeat(Self.ringPulseAction(), count: flash.repetitions)
+            let pulse = SKAction.sequence([
+                SKAction.group([
+                    SKAction.fadeAlpha(to: 0.95, duration: 0.05),
+                    SKAction.scale(to: 0.28, duration: 0)
+                ]),
+                SKAction.group([
+                    SKAction.scale(to: 1.25, duration: 0.24),
+                    SKAction.fadeOut(withDuration: 0.24)
+                ])
+            ])
+            let repeated = SKAction.repeat(pulse, count: flash.repetitions)
             var actions: [SKAction] = [.wait(forDuration: flash.delay)]
             if notify {
                 actions.append(.run { [weak self] in
