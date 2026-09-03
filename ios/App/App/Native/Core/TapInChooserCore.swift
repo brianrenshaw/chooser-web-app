@@ -161,6 +161,18 @@ public final class TapInChooserCore {
         try beginDraw()
     }
 
+    /// Dismisses a completed result without changing the entered group.
+    /// The next action is explicit: another Pick or a new group.
+    public func dismissResult() throws {
+        guard case .revealed = phase else {
+            throw TapInActionError.invalidPhase
+        }
+        drawSnapshot.removeAll()
+        phase = .collecting
+        publishState()
+        announce("Same group ready. Pick when ready.")
+    }
+
     public func newGroup() {
         cancelScheduledDraw()
         resetEntries()

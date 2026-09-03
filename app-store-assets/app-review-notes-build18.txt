@@ -1,0 +1,21 @@
+Who's First? is a focused, offline, native iPhone utility with three modes. Build 18 is iPhone-only and requires iOS 26 or later. A fresh install opens in Chooser. There is no login, account, required network connection, permission prompt, purchase, advertising, analytics, or data collection.
+
+Use the leading mode menu to select Chooser, Tap In, or Pinball. Safe mode changes happen immediately and clear the current group. The control is unavailable only while a choice or Pinball run is actively resolving. Settings contains eight visual themes plus bundled About, How It Works, and Privacy screens.
+
+CHOOSER
+Place two or more fingers on the iPhone screen simultaneously and keep them down. The app waits 1.0 second for late participants, then performs its synchronized visual/Core Haptics choosing ritual and selects one active finger with secure on-device randomness. The winning ring is the visible result; VoiceOver announces it. Lift every finger and place them again for a new round. A physical multitouch iPhone is needed to fully test this mode and its haptics.
+
+TAP IN
+Each participant taps once to create a sequential numbered entry. At two or more entries, tap Pick N. Try Again draws independently from the same group and may repeat a winner. A result-background tap dismisses the emphasis while preserving the group. Undo removes the newest entry, Clear asks for confirmation, and New group clears all entries. Capacity is 50.
+
+PINBALL
+Have 2–12 participants tap nearest their seats; the rays mark exact equal-area regions. After two seats, a wordless gesture demonstration indicates that the playfield is ready. Flick anywhere on the playfield. Once the gesture qualifies, the 30-point ball appears under the finger, follows it, and launches from the collision-safe release point in the release direction.
+
+After release, secure on-device randomness selects one seat with exactly 1/N probability. If the ordinary reflected path already reaches that seat, it remains unchanged. Otherwise, one localized theme-colored section of the first wall visibly flexes and redirects the outgoing path; there is no text overlay, hidden spawn, or later steering. All later bounces are ordinary specular reflections, and the visible endpoint plus enclosing boundary rays identify the winner. Try Again and a result-background tap keep the seats; New group clears them. Reduce Motion skips travel while preserving the same result.
+
+THEMES AND ACCESSIBILITY
+A simultaneous three-finger tap on a safe screen selects and saves a different theme without clearing the mode, group, or displayed result. The gesture is ignored during active interaction. With VoiceOver enabled, use the equivalent Shuffle colors accessibility action so system three-finger gestures remain untouched. The app also supports Dynamic Type, Reduce Motion, Reduce Transparency, Increase Contrast, Differentiate Without Color, portrait, and landscape.
+
+Build 18 provides Open Chooser, Open Tap In, and Open Pinball App Shortcuts using the local whosfirst://mode/chooser, whosfirst://mode/tap-in, and whosfirst://mode/pinball URLs. These affect only the current session mode.
+
+Finger positions, entries, seats, flicks, paths, and results exist only in memory and are never transmitted. Only the selected launch mode, visual theme, and a nonpersonal migration marker are stored locally. The eight themes use original procedural abstractions and system typography; no third-party artwork, logos, characters, symbols, fonts, or copied trade dress are included. Theme names are disclosed in Settings as unofficial color inspiration with no affiliation.

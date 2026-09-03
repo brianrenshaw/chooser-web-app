@@ -10,6 +10,11 @@ public enum PinballMathError: Error, Equatable, Sendable {
     case invalidBounds
     case pointOutsideBounds
     case zeroDirection
+    case invalidFlickSpeed
+    case invalidRandomUpperBound(Int)
+    case targetSamplingLimitExceeded(Int)
+    case guidedTrajectoryUnavailable
+    case specularTrajectoryUnavailable
     case invalidDistance
     case invalidDistanceRange
     case invalidTimeCurve
@@ -17,6 +22,185 @@ public enum PinballMathError: Error, Equatable, Sendable {
     case duplicateSeatID(Int)
     case tapAtPartitionCenter(Int)
     case reflectionLimitExceeded(Int)
+}
+
+/// Position, direction, and release speed committed by a player's flick before
+/// any chooser randomness is consumed.
+public struct PinballFlickIntent: Equatable, Sendable {
+    public let releasePoint: CGPoint
+    public let direction: CGVector
+    public let speed: CGFloat
+
+    public init(
+        releasePoint: CGPoint,
+        direction: CGVector,
+        speed: CGFloat
+    ) throws {
+        guard releasePoint.x.isFinite,
+              releasePoint.y.isFinite,
+              direction.dx.isFinite,
+              direction.dy.isFinite,
+              speed.isFinite else {
+            throw PinballMathError.nonFiniteValue
+        }
+        guard hypot(direction.dx, direction.dy) > 0 else {
+            throw PinballMathError.zeroDirection
+        }
+        guard speed >= 0 else {
+            throw PinballMathError.invalidFlickSpeed
+        }
+        self.releasePoint = releasePoint
+        self.direction = direction
+        self.speed = speed
+    }
+}
+
+/// Converts a physical flick into readable, physically specular motion.
+public enum PinballFlickLaunchPolicy {
+    public static let speedRange: ClosedRange<CGFloat> = 400...1_600
+    public static let distanceInPerimetersRange: ClosedRange<CGFloat> = 1.45...2.10
+    /// Stronger flicks travel farther in less time. The stored range remains
+    /// ascending, while ``flightDuration(forSpeed:)`` maps weak to its upper
+    /// bound and strong to its lower bound.
+    public static let flightDurationRange: ClosedRange<TimeInterval> = 3.80...4.20
+    public static let launchEnergyRange: ClosedRange<CGFloat> = 0.62...1.0
+    public static let narrowDirectionVariation: CGFloat = 1.5 * .pi / 180
+    public static let wideDirectionVariation: CGFloat = 12 * .pi / 180
+    public static let narrowDistanceVariation: CGFloat = 0.08
+    public static let wideDistanceVariation: CGFloat = 0.20
+    public static let inverseDistanceVariation: CGFloat = 0.35
+    /// Imperceptible center clearance beyond the rendered ball's collision
+    /// inset. It guarantees an outward edge release still has one real first
+    /// leg before the visible fairness bumper.
+    public static let releaseInteriorClearance: CGFloat = 0.5
+
+    /// Normalizes without altering axis-hugging or exact axial flicks.
+    public static func normalizedDirection(_ direction: CGVector) throws -> CGVector {
+        guard direction.dx.isFinite, direction.dy.isFinite else {
+            throw PinballMathError.nonFiniteValue
+        }
+        let magnitude = hypot(direction.dx, direction.dy)
+        guard magnitude > 0, magnitude.isFinite else {
+            throw PinballMathError.zeroDirection
+        }
+        return CGVector(
+            dx: direction.dx / magnitude,
+            dy: direction.dy / magnitude
+        )
+    }
+
+    /// Legacy source-compatible spelling. It now only normalizes; Build 11 no
+    /// longer forces a flick away from horizontal or vertical axes.
+    public static func clampedDirection(_ direction: CGVector) throws -> CGVector {
+        try normalizedDirection(direction)
+    }
+
+    public static func normalizedStrength(forSpeed speed: CGFloat) throws -> CGFloat {
+        guard speed.isFinite else { throw PinballMathError.nonFiniteValue }
+        guard speed >= 0 else { throw PinballMathError.invalidFlickSpeed }
+        return min(
+            1,
+            max(0, (speed - speedRange.lowerBound) /
+                (speedRange.upperBound - speedRange.lowerBound))
+        )
+    }
+
+    public static func centerDistanceInPerimeters(strength: CGFloat) -> CGFloat {
+        let clamped = min(1, max(0, strength))
+        return distanceInPerimetersRange.lowerBound + clamped *
+            (distanceInPerimetersRange.upperBound - distanceInPerimetersRange.lowerBound)
+    }
+
+    public static func perimeter(of bounds: CGRect) -> CGFloat {
+        2 * (bounds.width + bounds.height)
+    }
+
+    /// Keeps the ball center at the physical release location whenever that
+    /// point is drawable. Only the collision inset represented by `bounds` and
+    /// a subpoint interior clearance may move it, so launching never teleports
+    /// to a hidden random position.
+    public static func clampedReleasePoint(
+        _ point: CGPoint,
+        to bounds: CGRect
+    ) throws -> CGPoint {
+        try PinballValidation.validate(bounds: bounds)
+        try PinballValidation.validate(point: point)
+        let clearance = min(
+            releaseInteriorClearance,
+            min(bounds.width / 4, bounds.height / 4)
+        )
+        let interior = bounds.insetBy(dx: clearance, dy: clearance)
+        return CGPoint(
+            x: min(max(point.x, interior.minX), interior.maxX),
+            y: min(max(point.y, interior.minY), interior.maxY)
+        )
+    }
+
+    /// Maps 400...1600 points/second linearly onto the center of the
+    /// strength-appropriate travel band.
+    public static func travelDistance(
+        forSpeed speed: CGFloat,
+        in bounds: CGRect
+    ) throws -> CGFloat {
+        try PinballValidation.validate(bounds: bounds)
+        let strength = try normalizedStrength(forSpeed: speed)
+        return perimeter(of: bounds) * centerDistanceInPerimeters(strength: strength)
+    }
+
+    public static func flightDuration(forSpeed speed: CGFloat) throws -> TimeInterval {
+        let strength = try normalizedStrength(forSpeed: speed)
+        return flightDurationRange.upperBound - TimeInterval(strength) *
+            (flightDurationRange.upperBound - flightDurationRange.lowerBound)
+    }
+
+    /// Perceptual launch energy for material motion feedback. Analytic distance
+    /// remains the source of truth; this only scales the visible tail and
+    /// collision response so a soft flick cannot look identical to a hard one.
+    public static func launchEnergy(forStrength strength: CGFloat) -> CGFloat {
+        let clamped = min(1, max(0, strength))
+        return launchEnergyRange.lowerBound + clamped *
+            (launchEnergyRange.upperBound - launchEnergyRange.lowerBound)
+    }
+
+    /// Secure triangular angular variation centered on the committed flick.
+    public static func sampledDirection<R: PinballRandomSource>(
+        around direction: CGVector,
+        halfWidth: CGFloat = narrowDirectionVariation,
+        using random: inout R
+    ) throws -> CGVector {
+        guard halfWidth.isFinite, halfWidth >= 0 else {
+            throw PinballMathError.nonFiniteValue
+        }
+        let unit = try normalizedDirection(direction)
+        let triangular = random.nextUnitInterval() + random.nextUnitInterval() - 1
+        let delta = triangular * halfWidth
+        let cosine = cos(delta)
+        let sine = sin(delta)
+        return CGVector(
+            dx: unit.dx * cosine - unit.dy * sine,
+            dy: unit.dx * sine + unit.dy * cosine
+        )
+    }
+
+    public static func sampledTravelDistance<R: PinballRandomSource>(
+        strength: CGFloat,
+        variation: CGFloat = narrowDistanceVariation,
+        in bounds: CGRect,
+        using random: inout R
+    ) throws -> CGFloat {
+        try PinballValidation.validate(bounds: bounds)
+        guard strength.isFinite, variation.isFinite, variation >= 0 else {
+            throw PinballMathError.nonFiniteValue
+        }
+        let center = centerDistanceInPerimeters(strength: strength)
+        let offset: CGFloat
+        if variation == 0 {
+            offset = 0
+        } else {
+            offset = try random.nextCGFloat(in: (-variation)...variation)
+        }
+        return perimeter(of: bounds) * max(0, center + offset)
+    }
 }
 
 /// Minimal random-source abstraction used by the pinball core.
@@ -44,6 +228,21 @@ public struct SecurePinballRandomSource: PinballRandomSource, Sendable {
 }
 
 public extension PinballRandomSource {
+    /// Exact rejection-sampled index without modulo bias.
+    mutating func nextUnbiasedIndex(upperBound: Int) throws -> Int {
+        guard upperBound > 0 else {
+            throw PinballMathError.invalidRandomUpperBound(upperBound)
+        }
+        let bound = UInt64(upperBound)
+        let threshold = (0 &- bound) % bound
+        while true {
+            let value = nextUInt64()
+            if value >= threshold {
+                return Int(value % bound)
+            }
+        }
+    }
+
     /// A uniformly distributed binary64 value in the half-open interval [0, 1).
     ///
     /// Using the high 53 bits matches `Double`'s significand precision. Every
@@ -136,6 +335,33 @@ public enum PinballSampling {
         let start = try uniformStart(in: bounds, using: &random)
         let direction = uniformDirection(using: &random)
         let distance = try uniformDistance(in: distanceRange, using: &random)
+        return try PinballLaunch(start: start, direction: direction, distance: distance)
+    }
+
+    /// Creates the unconditioned first-leg launch seed from a committed flick.
+    ///
+    /// Direction and strength are resolved before this function consumes any
+    /// random values. The launch point is the player's release, clamped only to
+    /// the ball's collision bounds plus its subpoint interior clearance. A
+    /// fixed-direction reflecting path is not by itself a fair chooser;
+    /// ``PinballRoundResolver.flickRound`` preserves this first leg, then uses
+    /// one explicit first-wall deflector to reach an independently selected
+    /// equal-probability region.
+    public static func flickLaunch<R: PinballRandomSource>(
+        in bounds: CGRect,
+        intent: PinballFlickIntent,
+        using random: inout R
+    ) throws -> PinballLaunch {
+        _ = random
+        let direction = try PinballFlickLaunchPolicy.normalizedDirection(intent.direction)
+        let distance = try PinballFlickLaunchPolicy.travelDistance(
+            forSpeed: intent.speed,
+            in: bounds
+        )
+        let start = try PinballFlickLaunchPolicy.clampedReleasePoint(
+            intent.releasePoint,
+            to: bounds
+        )
         return try PinballLaunch(start: start, direction: direction, distance: distance)
     }
 }

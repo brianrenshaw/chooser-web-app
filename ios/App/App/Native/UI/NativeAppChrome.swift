@@ -20,7 +20,7 @@ public struct NativeModeOption: Identifiable, Hashable, Sendable {
     }
 }
 
-/// A fixed triplet makes the cycling behavior explicit without coupling the UI to an engine enum.
+/// A fixed triplet keeps the menu independent from the chooser engine enum.
 public struct NativeModeTriplet: Sendable {
     public let first: NativeModeOption
     public let second: NativeModeOption
@@ -43,15 +43,9 @@ public struct NativeModeTriplet: Sendable {
         all.first(where: { $0.id == id }) ?? first
     }
 
-    public func next(after id: NativeModeOption.ID) -> NativeModeOption {
-        let options = all
-        guard let index = options.firstIndex(where: { $0.id == id }) else { return first }
-        return options[(index + 1) % options.count]
-    }
-
     /// Useful defaults for prototypes. Production code can supply any names and IDs.
     public static let chooserDefaults = NativeModeTriplet(
-        first: NativeModeOption(id: "together", name: "Together", iconArtwork: .orbit),
+        first: NativeModeOption(id: "together", name: "Chooser", iconArtwork: .orbit),
         second: NativeModeOption(id: "tap-in", name: "Tap In", iconArtwork: .numberedTokens),
         third: NativeModeOption(id: "pinball", name: "Pinball", iconArtwork: .analyticTrail)
     )
@@ -59,33 +53,37 @@ public struct NativeModeTriplet: Sendable {
 
 /// A lightweight top chrome that does not own navigation or application state.
 public struct NativeAppChrome: View {
-    @Binding private var selectedModeID: NativeModeOption.ID
+    private let selectedModeID: NativeModeOption.ID
     private let modes: NativeModeTriplet
     private let isModeChangeEnabled: Bool
+    private let isSettingsEnabled: Bool
     private let onModeChange: (NativeModeOption) -> Void
     private let onSetDefaultMode: (NativeModeOption) -> Void
-    private let onOpenInformation: () -> Void
+    private let onOpenSettings: () -> Void
+    @Environment(\.chooserVisualTheme) private var visualTheme
 
     public init(
-        selectedModeID: Binding<NativeModeOption.ID>,
+        selectedModeID: NativeModeOption.ID,
         modes: NativeModeTriplet = .chooserDefaults,
         isModeChangeEnabled: Bool = true,
+        isSettingsEnabled: Bool = true,
         onModeChange: @escaping (NativeModeOption) -> Void = { _ in },
         onSetDefaultMode: @escaping (NativeModeOption) -> Void = { _ in },
-        onOpenInformation: @escaping () -> Void
+        onOpenSettings: @escaping () -> Void
     ) {
-        self._selectedModeID = selectedModeID
+        self.selectedModeID = selectedModeID
         self.modes = modes
         self.isModeChangeEnabled = isModeChangeEnabled
+        self.isSettingsEnabled = isSettingsEnabled
         self.onModeChange = onModeChange
         self.onSetDefaultMode = onSetDefaultMode
-        self.onOpenInformation = onOpenInformation
+        self.onOpenSettings = onOpenSettings
     }
 
     public var body: some View {
         HStack(alignment: .top) {
-            NativeModeCycleButton(
-                selectedModeID: $selectedModeID,
+            NativeModeMenu(
+                selectedModeID: selectedModeID,
                 modes: modes,
                 isEnabled: isModeChangeEnabled,
                 onModeChange: onModeChange,
@@ -94,43 +92,75 @@ public struct NativeAppChrome: View {
 
             Spacer(minLength: 16)
 
-            Button(action: onOpenInformation) {
-                Image(systemName: "questionmark")
-                    .font(.system(size: 17, weight: .bold, design: .rounded))
-                    .frame(width: 44, height: 44)
-                    .foregroundStyle(.white.opacity(0.82))
-                    .background(.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 17, style: .continuous))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 17, style: .continuous)
-                            .stroke(.white.opacity(0.14), lineWidth: 1)
-                    }
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Help and information")
-            .accessibilityIdentifier("help-and-information")
+            NativeSettingsButton(
+                isEnabled: isSettingsEnabled,
+                action: onOpenSettings
+            )
         }
+        .buttonStyle(.glass)
+        .buttonBorderShape(.circle)
+        .tint(
+            visualTheme.chromeTintColor.opacity(
+                visualTheme.chromeControlBackingOpacity
+            )
+        )
     }
 }
 
-/// A compact three-state control. Tap cycles; long press reports the current mode as a default.
-public struct NativeModeCycleButton: View {
-    @Binding private var selectedModeID: NativeModeOption.ID
+/// The semantic Settings action. A navigation toolbar supplies its Liquid
+/// Glass treatment automatically; standalone hosts can apply `.buttonStyle(.glass)`.
+public struct NativeSettingsButton: View {
+    private let isEnabled: Bool
+    private let action: () -> Void
+    @Environment(\.chooserVisualTheme) private var visualTheme
+
+    public init(isEnabled: Bool = true, action: @escaping () -> Void) {
+        self.isEnabled = isEnabled
+        self.action = action
+    }
+
+    public var body: some View {
+        Button(action: action) {
+            Image(systemName: "gearshape")
+                .font(.system(size: 16, weight: .semibold))
+                .symbolRenderingMode(.monochrome)
+                .frame(width: 44, height: 44)
+                .foregroundStyle(visualTheme.primaryInkColor)
+        }
+        .accessibilityLabel("Settings")
+        .accessibilityHint(
+            isEnabled
+                ? "Opens appearance and app information"
+                : "Unavailable while a choice is in progress"
+        )
+        .accessibilityIdentifier("settings-button")
+        .controlSize(.large)
+        .frame(minWidth: 44, minHeight: 44)
+        .contentShape(Rectangle())
+        .disabled(!isEnabled)
+        .opacity(isEnabled ? 1 : 0.38)
+        .animation(.easeInOut(duration: 0.15), value: isEnabled)
+    }
+}
+
+/// A fixed-size mode marble that keeps the main screen quiet while making all
+/// three modes directly available in a native menu.
+public struct NativeModeMenu: View {
+    private let selectedModeID: NativeModeOption.ID
     private let modes: NativeModeTriplet
     private let isEnabled: Bool
     private let onModeChange: (NativeModeOption) -> Void
     private let onSetDefaultMode: (NativeModeOption) -> Void
-
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @GestureState private var isPressed = false
+    @Environment(\.chooserColorTheme) private var colorTheme
 
     public init(
-        selectedModeID: Binding<NativeModeOption.ID>,
+        selectedModeID: NativeModeOption.ID,
         modes: NativeModeTriplet = .chooserDefaults,
         isEnabled: Bool = true,
         onModeChange: @escaping (NativeModeOption) -> Void = { _ in },
         onSetDefaultMode: @escaping (NativeModeOption) -> Void = { _ in }
     ) {
-        self._selectedModeID = selectedModeID
+        self.selectedModeID = selectedModeID
         self.modes = modes
         self.isEnabled = isEnabled
         self.onModeChange = onModeChange
@@ -138,85 +168,87 @@ public struct NativeModeCycleButton: View {
     }
 
     private var selectedMode: NativeModeOption { modes.option(id: selectedModeID) }
-    private var nextMode: NativeModeOption { modes.next(after: selectedModeID) }
-
     public var body: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 17, style: .continuous)
-                .fill(selectedMode.iconArtwork == .numberedTokens ? Color.cyan.opacity(0.13) : Color.white.opacity(0.07))
-
-            RoundedRectangle(cornerRadius: 17, style: .continuous)
-                .stroke(
-                    selectedMode.iconArtwork == .numberedTokens ? Color.cyan.opacity(0.38) : Color.white.opacity(0.14),
-                    lineWidth: 1
-                )
-
-            NativeModeIcon(artwork: selectedMode.iconArtwork)
-                .id(selectedMode.id)
-                .transition(
-                    reduceMotion
-                        ? .opacity
-                        : .asymmetric(
-                            insertion: .scale(scale: 0.68).combined(with: .opacity),
-                            removal: .scale(scale: 0.68).combined(with: .opacity)
-                        )
-                )
-        }
-        .frame(width: 48, height: 44)
-        .scaleEffect(isPressed && isEnabled ? 0.92 : 1)
-        .rotationEffect(.degrees(isPressed && isEnabled && !reduceMotion ? -3 : 0))
-        .opacity(isEnabled ? 1 : 0.48)
-        .contentShape(RoundedRectangle(cornerRadius: 17, style: .continuous))
-        .animation(reduceMotion ? .linear(duration: 0.01) : .spring(duration: 0.28, bounce: 0.42), value: selectedModeID)
-        .animation(.easeOut(duration: 0.12), value: isPressed)
-        .gesture(modeGesture, including: isEnabled ? .all : .none)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(selectedMode.name) mode")
-        .accessibilityValue("Active")
-        .accessibilityHint("Activate to switch to \(nextMode.name). Long press to make \(selectedMode.name) the default.")
-        .accessibilityAddTraits(.isButton)
-        .accessibilityIdentifier("mode-cycle")
-        .accessibilityAction(.default, cycleMode)
-        .accessibilityAction(named: Text("Make \(selectedMode.name) Default")) {
-            guard isEnabled else { return }
-            onSetDefaultMode(selectedMode)
-        }
-    }
-
-    private var modeGesture: some Gesture {
-        let tap = TapGesture()
-        let longPress = LongPressGesture(minimumDuration: 0.55, maximumDistance: 24)
-
-        return longPress
-            .exclusively(before: tap)
-            .updating($isPressed) { _, state, _ in state = true }
-            .onEnded { result in
-                guard isEnabled else { return }
-                switch result {
-                case .first:
-                    onSetDefaultMode(selectedMode)
-                case .second:
-                    cycleMode()
+        Menu {
+            Section("Choose a mode") {
+                ForEach(modes.all) { option in
+                    Button {
+                        guard option.id != selectedModeID else { return }
+                        onModeChange(option)
+                    } label: {
+                        Label {
+                            Text(option.name)
+                        } icon: {
+                            Image(
+                                systemName: option.id == selectedModeID
+                                    ? "checkmark"
+                                    : option.iconArtwork.menuSystemImage
+                            )
+                        }
+                    }
+                    .disabled(option.id == selectedModeID)
+                    .accessibilityIdentifier("mode-option-\(option.id)")
                 }
             }
+
+            Divider()
+
+            Button {
+                onSetDefaultMode(selectedMode)
+            } label: {
+                Label("Make \(selectedMode.name) Default", systemImage: "star")
+            }
+            .accessibilityIdentifier("make-current-mode-default")
+        } label: {
+            NativeModeMarble(artwork: selectedMode.iconArtwork, theme: colorTheme)
+        }
+        .menuOrder(.fixed)
+        .buttonStyle(.plain)
+        .controlSize(.large)
+        .frame(minWidth: 44, minHeight: 44)
+        .contentShape(Rectangle())
+        .disabled(!isEnabled)
+        .accessibilityLabel("\(selectedMode.name) mode")
+        .accessibilityValue("Current")
+        .accessibilityHint("Opens the mode menu")
+        .accessibilityIdentifier("mode-menu")
     }
 
-    private func cycleMode() {
-        guard isEnabled else { return }
-        let next = nextMode
-        if reduceMotion {
-            selectedModeID = next.id
-        } else {
-            withAnimation(.spring(duration: 0.28, bounce: 0.42)) {
-                selectedModeID = next.id
-            }
+}
+
+private struct NativeModeMarble: View {
+    let artwork: NativeModeIconArtwork
+    let theme: ChooserColorTheme
+
+    @Environment(\.isEnabled) private var isEnabled
+
+    var body: some View {
+        ZStack {
+            NativeModeIcon(artwork: artwork, theme: theme)
+                .frame(width: 25, height: 25)
+                .id(artwork)
+                .transition(.blurReplace)
         }
-        onModeChange(next)
+        .frame(width: 44, height: 44)
+        .contentShape(Circle())
+        .opacity(isEnabled ? 1 : 0.38)
+        .animation(.smooth(duration: 0.22), value: artwork)
+    }
+}
+
+private extension NativeModeIconArtwork {
+    var menuSystemImage: String {
+        switch self {
+        case .orbit: "hand.raised.fill"
+        case .numberedTokens: "number.circle.fill"
+        case .analyticTrail: "sparkles"
+        }
     }
 }
 
 private struct NativeModeIcon: View {
     let artwork: NativeModeIconArtwork
+    let theme: ChooserColorTheme
 
     var body: some View {
         Canvas { context, size in
@@ -234,25 +266,26 @@ private struct NativeModeIcon: View {
 
     private func drawOrbit(in context: inout GraphicsContext, size: CGSize) {
         let center = CGPoint(x: size.width / 2, y: size.height / 2)
-        let orbitRect = CGRect(x: center.x - 10.6, y: center.y - 10.6, width: 21.2, height: 21.2)
-        context.stroke(Path(ellipseIn: orbitRect), with: .color(.white.opacity(0.30)), lineWidth: 1.6)
-
         let dots = [
-            CGPoint(x: center.x, y: center.y - 9.2),
-            CGPoint(x: center.x - 8.1, y: center.y + 5.1),
-            CGPoint(x: center.x + 8.1, y: center.y + 5.1)
+            CGPoint(x: center.x, y: center.y - 7.2),
+            CGPoint(x: center.x - 6.5, y: center.y + 4.7),
+            CGPoint(x: center.x + 6.5, y: center.y + 4.7)
         ]
         for (index, point) in dots.enumerated() {
-            let color: Color = index == 0 ? .cyan : (index == 1 ? .pink : .mint)
-            context.fill(Path(ellipseIn: CGRect(x: point.x - 3.4, y: point.y - 3.4, width: 6.8, height: 6.8)), with: .color(color))
+            let color = theme.participantColor(at: index)
+            let circle = Path(
+                ellipseIn: CGRect(x: point.x - 3.75, y: point.y - 3.75, width: 7.5, height: 7.5)
+            )
+            context.fill(
+                circle,
+                with: .color(color)
+            )
+            context.stroke(
+                circle,
+                with: .color(theme.onChromeInkColor.opacity(0.72)),
+                lineWidth: 1.15
+            )
         }
-
-        var spark = Path()
-        spark.move(to: CGPoint(x: center.x, y: center.y - 3.8))
-        spark.addLine(to: CGPoint(x: center.x, y: center.y + 3.8))
-        spark.move(to: CGPoint(x: center.x - 3.8, y: center.y))
-        spark.addLine(to: CGPoint(x: center.x + 3.8, y: center.y))
-        context.stroke(spark, with: .color(.white.opacity(0.86)), style: StrokeStyle(lineWidth: 1.5, lineCap: .round))
     }
 
     private func drawNumberedTokens(in context: inout GraphicsContext, size: CGSize) {
@@ -263,17 +296,32 @@ private struct NativeModeIcon: View {
             control1: CGPoint(x: 12, y: size.height - 11),
             control2: CGPoint(x: size.width - 12, y: 14)
         )
-        context.stroke(trail, with: .color(.white.opacity(0.28)), style: StrokeStyle(lineWidth: 1.3, dash: [2.4, 2.8]))
+        context.stroke(
+            trail,
+            with: .color(theme.secondaryInkColor.opacity(0.55)),
+            style: StrokeStyle(lineWidth: 1.3, dash: [2.4, 2.8])
+        )
 
-        let tokens: [(CGPoint, String, Color)] = [
-            (CGPoint(x: 7, y: 25), "1", .pink),
-            (CGPoint(x: 16, y: 16), "2", .cyan),
-            (CGPoint(x: 25, y: 7), "3", .mint)
+        let tokens: [(CGPoint, String, Int)] = [
+            (CGPoint(x: 7, y: 25), "1", 0),
+            (CGPoint(x: 16, y: 16), "2", 1),
+            (CGPoint(x: 25, y: 7), "3", 2)
         ]
-        for (point, number, color) in tokens {
-            context.fill(Path(ellipseIn: CGRect(x: point.x - 5, y: point.y - 5, width: 10, height: 10)), with: .color(color.opacity(0.9)))
+        for (point, number, index) in tokens {
+            let color = theme.participantColor(at: index)
+            let circle = Path(
+                ellipseIn: CGRect(x: point.x - 5, y: point.y - 5, width: 10, height: 10)
+            )
+            context.fill(circle, with: .color(color.opacity(0.94)))
+            context.stroke(
+                circle,
+                with: .color(theme.onChromeInkColor.opacity(0.66)),
+                lineWidth: 1
+            )
             context.draw(
-                Text(number).font(.system(size: 6.5, weight: .heavy, design: .rounded)).foregroundStyle(.black.opacity(0.78)),
+                Text(number)
+                    .font(.system(size: 6.5, weight: .heavy, design: .rounded))
+                    .foregroundStyle(theme.participantNumeralColor(at: index)),
                 at: point
             )
         }
@@ -292,16 +340,29 @@ private struct NativeModeIcon: View {
             control1: CGPoint(x: size.width * 0.74, y: size.height * 0.12),
             control2: CGPoint(x: size.width * 0.79, y: size.height * 0.79)
         )
-        context.stroke(trail, with: .color(.cyan.opacity(0.82)), style: StrokeStyle(lineWidth: 2.3, lineCap: .round))
+        context.stroke(
+            trail,
+            with: .color(theme.onChromeInkColor.opacity(0.58)),
+            style: StrokeStyle(lineWidth: 4.1, lineCap: .round)
+        )
+        context.stroke(
+            trail,
+            with: .color(theme.pinballTailColor.opacity(0.88)),
+            style: StrokeStyle(lineWidth: 2.3, lineCap: .round)
+        )
 
         let finish = CGPoint(x: size.width - 4, y: size.height * 0.57)
-        context.fill(Path(ellipseIn: CGRect(x: finish.x - 4, y: finish.y - 4, width: 8, height: 8)), with: .color(.pink))
-
-        var spark = Path()
-        spark.move(to: CGPoint(x: finish.x, y: finish.y - 7))
-        spark.addLine(to: CGPoint(x: finish.x, y: finish.y + 7))
-        spark.move(to: CGPoint(x: finish.x - 7, y: finish.y))
-        spark.addLine(to: CGPoint(x: finish.x + 7, y: finish.y))
-        context.stroke(spark, with: .color(.white.opacity(0.82)), style: StrokeStyle(lineWidth: 1.2, lineCap: .round))
+        let ball = Path(
+            ellipseIn: CGRect(x: finish.x - 4, y: finish.y - 4, width: 8, height: 8)
+        )
+        context.fill(
+            ball,
+            with: .color(theme.pinballColor)
+        )
+        context.stroke(
+            ball,
+            with: .color(theme.onChromeInkColor.opacity(0.68)),
+            lineWidth: 1.1
+        )
     }
 }

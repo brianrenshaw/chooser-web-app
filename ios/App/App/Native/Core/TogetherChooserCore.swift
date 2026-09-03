@@ -12,12 +12,14 @@ public struct TogetherTouchIdentity: Hashable, Codable, Sendable {
 }
 
 public struct TogetherTiming: Equatable, Sendable {
+    public static let defaultSettlingDuration: TimeInterval = 1.0
+
     public let settlingDuration: TimeInterval
     public let countdownDuration: TimeInterval
 
     public init(
-        settlingDuration: TimeInterval = 1.5,
-        countdownDuration: TimeInterval = 1.0
+        settlingDuration: TimeInterval = Self.defaultSettlingDuration,
+        countdownDuration: TimeInterval = ChoiceAnticipationTimeline.chooser.duration
     ) {
         precondition(
             settlingDuration.isFinite && settlingDuration >= 0,
@@ -82,6 +84,10 @@ public final class TogetherChooserCore {
             phase: phase,
             participantTouchIDs: participantTouchIDs
         )
+    }
+
+    public var settlingDuration: TimeInterval {
+        timing.settlingDuration
     }
 
     public init(
@@ -173,6 +179,25 @@ public final class TogetherChooserCore {
         publishState()
     }
 
+    /// Restores the exact completed round that was visible before UIKit began
+    /// delivering a possible app-wide theme-shuffle gesture. This is narrowly
+    /// scoped to an already-authored snapshot; winner selection is never run a
+    /// second time and no accessibility announcement is repeated.
+    @discardableResult
+    func restoreRevealedSnapshot(_ snapshot: TogetherChooserSnapshot) -> Bool {
+        guard case .revealed(let winner) = snapshot.phase,
+              snapshot.participantTouchIDs.contains(winner) else {
+            return false
+        }
+
+        cancelScheduledTransition()
+        participantTouchIDs = snapshot.participantTouchIDs
+        participantTouchIDSet = Set(snapshot.participantTouchIDs)
+        phase = .revealed(winner: winner)
+        publishState()
+        return true
+    }
+
     /// Cancels all in-flight settling/countdown work and discards physical
     /// touches so returning from the background always requires a fresh round.
     public func cancelForLifecycle() {
@@ -228,7 +253,7 @@ public final class TogetherChooserCore {
             let winner = participantTouchIDs[index]
             phase = .revealed(winner: winner)
             publishState()
-            announce("The glowing finger goes first.")
+            announce("The selected finger goes first.")
         } catch {
             phase = .idle
             publishState()

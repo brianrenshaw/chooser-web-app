@@ -1,0 +1,204 @@
+{
+  "fill-specializations" : [
+    {
+      "value" : {
+        "solid" : "extended-srgb:0.95294,0.92157,0.86667,1.00000"
+      }
+    },
+    {
+      "appearance" : "dark",
+      "value" : {
+        "solid" : "extended-srgb:0.02745,0.09804,0.11373,1.00000"
+      }
+    },
+    {
+      "appearance" : "tinted",
+      "value" : {
+        "solid" : "extended-gray:0.12000,1.00000"
+      }
+    }
+  ],
+  "groups" : [
+    {
+      "layers" : [
+        {
+          "glass" : false,
+          "image-name-specializations" : [
+            {
+              "value" : "08-chooser-puck.svg"
+            },
+            {
+              "appearance" : "dark",
+              "value" : "08-chooser-puck-dark.svg"
+            },
+            {
+              "appearance" : "tinted",
+              "value" : "08-chooser-puck-mono.svg"
+            }
+          ],
+          "name" : "Chooser Puck"
+        }
+      ],
+      "name" : "Puck",
+      "shadow" : {
+        "kind" : "none",
+        "opacity" : 0
+      },
+      "specular" : false,
+      "translucency" : {
+        "enabled" : false,
+        "value" : 0
+      }
+    },
+    {
+      "layers" : [
+        {
+          "glass" : false,
+          "image-name-specializations" : [
+            {
+              "value" : "03-seat-coral.svg"
+            },
+            {
+              "appearance" : "dark",
+              "value" : "03-seat-coral-dark.svg"
+            },
+            {
+              "appearance" : "tinted",
+              "value" : "03-seat-coral-mono.svg"
+            }
+          ],
+          "name" : "Coral Seat"
+        },
+        {
+          "glass" : false,
+          "image-name-specializations" : [
+            {
+              "value" : "04-seat-saffron.svg"
+            },
+            {
+              "appearance" : "dark",
+              "value" : "04-seat-saffron-dark.svg"
+            },
+            {
+              "appearance" : "tinted",
+              "value" : "04-seat-saffron-mono.svg"
+            }
+          ],
+          "name" : "Saffron Seat"
+        },
+        {
+          "glass" : false,
+          "image-name-specializations" : [
+            {
+              "value" : "05-seat-sky.svg"
+            },
+            {
+              "appearance" : "dark",
+              "value" : "05-seat-sky-dark.svg"
+            },
+            {
+              "appearance" : "tinted",
+              "value" : "05-seat-sky-mono.svg"
+            }
+          ],
+          "name" : "Sky Seat"
+        },
+        {
+          "glass" : false,
+          "image-name-specializations" : [
+            {
+              "value" : "06-seat-leaf.svg"
+            },
+            {
+              "appearance" : "dark",
+              "value" : "06-seat-leaf-dark.svg"
+            },
+            {
+              "appearance" : "tinted",
+              "value" : "06-seat-leaf-mono.svg"
+            }
+          ],
+          "name" : "Leaf Seat"
+        },
+        {
+          "glass" : false,
+          "image-name-specializations" : [
+            {
+              "value" : "07-seat-plum.svg"
+            },
+            {
+              "appearance" : "dark",
+              "value" : "07-seat-plum-dark.svg"
+            },
+            {
+              "appearance" : "tinted",
+              "value" : "07-seat-plum-mono.svg"
+            }
+          ],
+          "name" : "Plum Seat"
+        }
+      ],
+      "name" : "Seats",
+      "shadow" : {
+        "kind" : "none",
+        "opacity" : 0
+      },
+      "specular" : false,
+      "translucency" : {
+        "enabled" : false,
+        "value" : 0
+      }
+    },
+    {
+      "layers" : [
+        {
+          "glass" : false,
+          "image-name-specializations" : [
+            {
+              "value" : "02-playing-surface.svg"
+            },
+            {
+              "appearance" : "dark",
+              "value" : "02-playing-surface-dark.svg"
+            },
+            {
+              "appearance" : "tinted",
+              "value" : "02-playing-surface-mono.svg"
+            }
+          ],
+          "name" : "Playing Surface"
+        },
+        {
+          "glass" : false,
+          "image-name-specializations" : [
+            {
+              "value" : "01-table.svg"
+            },
+            {
+              "appearance" : "dark",
+              "value" : "01-table-dark.svg"
+            },
+            {
+              "appearance" : "tinted",
+              "value" : "01-table-mono.svg"
+            }
+          ],
+          "name" : "Table"
+        }
+      ],
+      "name" : "Table",
+      "shadow" : {
+        "kind" : "none",
+        "opacity" : 0
+      },
+      "specular" : false,
+      "translucency" : {
+        "enabled" : false,
+        "value" : 0
+      }
+    }
+  ],
+  "supported-platforms" : {
+    "squares" : "shared"
+  }
+}

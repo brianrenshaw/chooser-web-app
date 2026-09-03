@@ -6,14 +6,13 @@ import Observation
 public struct TogetherTouchVisual: Equatable {
     public let id: TogetherTouchIdentity
     public var location: CGPoint
-    public let hue: Double
+    public let colorIndex: Int
 }
 
 public struct TapInPendingVisual: Equatable {
     public let touchID: UInt64
     public var location: CGPoint
     public let number: Int
-    public let hue: Double
 }
 
 public struct NativePinballSeat: Identifiable, Equatable, Sendable {
@@ -29,16 +28,33 @@ public struct NativePinballSeat: Identifiable, Equatable, Sendable {
 public struct NativePinballRun: Identifiable, Equatable, Sendable {
     public let id: UUID
     public let result: PinballRoundResult
-    public let curve: PinballDecelerationCurve
+    public let curve: PinballMotionProfile
+    public let normalizedStrength: Double
+    public let launchEnergy: Double
 
     public init(
         id: UUID = UUID(),
         result: PinballRoundResult,
-        curve: PinballDecelerationCurve
+        curve: PinballMotionProfile,
+        normalizedStrength: Double = 0.5,
+        launchEnergy: Double? = nil
     ) {
+        let clampedStrength = min(1, max(0, normalizedStrength))
         self.id = id
         self.result = result
         self.curve = curve
+        self.normalizedStrength = clampedStrength
+        self.launchEnergy = min(
+            1,
+            max(
+                0,
+                launchEnergy ?? Double(
+                    PinballFlickLaunchPolicy.launchEnergy(
+                        forStrength: CGFloat(clampedStrength)
+                    )
+                )
+            )
+        )
     }
 }
 
@@ -70,22 +86,42 @@ public enum NativePinballPhase: Equatable, Sendable {
 }
 
 public enum ChooserConfirmation: Identifiable, Equatable {
-    case switchMode(target: AppMode, itemCount: Int, itemName: String)
     case clearTapIn(count: Int)
     case clearPinball(count: Int)
 
     public var id: String {
         switch self {
-        case .switchMode(let target, _, _): "switch-\(target.rawValue)"
         case .clearTapIn: "clear-tap-in"
         case .clearPinball: "clear-pinball"
         }
     }
 }
 
+struct NativePinballCollisionFeedbackEvent: Equatable, Sendable {
+    let vertexIndex: Int
+    let progress: Double
+    let time: TimeInterval
+    let speedFraction: Double
+    let isCorner: Bool
+    let isFairnessDeflection: Bool
+}
+
+private struct TogetherRevealedThemeShuffleBackup {
+    let snapshot: TogetherChooserSnapshot
+    let visuals: [TogetherTouchIdentity: TogetherTouchVisual]
+    let hueIndex: Int
+    let capturedAt: Date
+}
+
 @MainActor
 @Observable
 public final class ChooserAppModel {
+    private static let pinballWinnerRevealDuration = Duration.milliseconds(480)
+    static let pinballDistanceRangeInPerimeters = PinballFlickLaunchPolicy.distanceInPerimetersRange
+    static let pinballFlightDuration: TimeInterval = 4.00
+    static let pinballCollisionMinimumSpacing: TimeInterval = 0.10
+    static let pinballWinnerQuietWindow: TimeInterval = 0.30
+
     public private(set) var mode: AppMode
     public private(set) var launchDefaultMode: AppMode
     public private(set) var togetherSnapshot: TogetherChooserSnapshot
@@ -94,36 +130,67 @@ public final class ChooserAppModel {
     public private(set) var tapInPending: [UInt64: TapInPendingVisual] = [:]
     public private(set) var tapInTravelOrigins: [UInt64: CGPoint] = [:]
     public private(set) var pinballSeats: [NativePinballSeat] = []
+    public private(set) var pinballTravelOrigins: [Int: CGPoint] = [:]
     public private(set) var pinballPhase: NativePinballPhase = .collecting
     public private(set) var pinballPlayfieldSize: CGSize = .zero
     public private(set) var countdownStartedAt: Date?
+    public private(set) var colorTheme: ChooserColorTheme
     public var confirmation: ChooserConfirmation?
-    public var isInformationPresented = false
+    /// Which first-run surface is showing, if any.
+    ///
+    /// Writable for the same reason `confirmation` is: SwiftUI presentation
+    /// modifiers need a `Binding` and this model deliberately does not import
+    /// SwiftUI. Every transition still goes through a method below; the view
+    /// layer only ever writes `nil`, and it routes that back into
+    /// `completeOnboarding()`.
+    public var presentedOnboarding: OnboardingMoment?
     public private(set) var toastMessage: String?
 
     @ObservationIgnored private let modeCore: AppModeCore
     @ObservationIgnored private let togetherCore: TogetherChooserCore
     @ObservationIgnored private let tapInCore: TapInChooserCore
     @ObservationIgnored private let feedback: any NativeFeedbackCoordinating
-    @ObservationIgnored private var countdownFeedbackTask: Task<Void, Never>?
+    @ObservationIgnored private let colorThemeStore: any ChooserColorThemePersisting
+    @ObservationIgnored private let onboardingStore: any OnboardingProgressPersisting
+    @ObservationIgnored private let colorThemeRandomIndexGenerator: any RandomIndexGenerating
+    /// Mirror of the store. Mutated **only** by `markOnboardingMomentsSeen(_:)`;
+    /// any second mutation site would silently desync it from `UserDefaults`.
+    @ObservationIgnored private var seenOnboardingMoments: Set<OnboardingMoment>
+    @ObservationIgnored private var isWelcomeReplayRequested = false
     @ObservationIgnored private var pinballTask: Task<Void, Never>?
-    @ObservationIgnored private var pinballCollisionFeedbackTask: Task<Void, Never>?
+    @ObservationIgnored private var pinballPendingCollisionFeedback: [Int: NativePinballCollisionFeedbackEvent] = [:]
+    @ObservationIgnored private var pinballEndpointSettleCueRunID: UUID?
+    @ObservationIgnored private var pinballFinishEnqueuedRunID: UUID?
     @ObservationIgnored private var toastTask: Task<Void, Never>?
     @ObservationIgnored private var togetherHueIndex = 0
+    @ObservationIgnored private var isSceneActive = true
+    @ObservationIgnored private var colorThemeTransitionBlockedUntil = Date.distantPast
+    @ObservationIgnored private var togetherRevealedThemeShuffleBackup: TogetherRevealedThemeShuffleBackup?
+    @ObservationIgnored private var isRestoringTogetherRevealForThemeShuffle = false
 
     public init(
         modeStore: LaunchDefaultModePersisting = UserDefaultsLaunchDefaultModeStore(),
+        colorThemeStore: ChooserColorThemePersisting = UserDefaultsChooserColorThemeStore(),
+        onboardingStore: OnboardingProgressPersisting = UserDefaultsOnboardingProgressStore(),
         togetherCore: TogetherChooserCore = TogetherChooserCore(),
         tapInCore: TapInChooserCore = TapInChooserCore(),
+        colorThemeRandomIndexGenerator: any RandomIndexGenerating = SecureRandomIndexGenerator(),
         feedback: (any NativeFeedbackCoordinating)? = nil
     ) {
         let modeCore = AppModeCore(store: modeStore)
         self.modeCore = modeCore
         self.togetherCore = togetherCore
         self.tapInCore = tapInCore
-        self.feedback = feedback ?? NativeFeedbackCoordinator(audioPolicy: .always)
+        self.colorThemeStore = colorThemeStore
+        self.onboardingStore = onboardingStore
+        self.colorThemeRandomIndexGenerator = colorThemeRandomIndexGenerator
+        self.feedback = feedback ?? NativeFeedbackCoordinator(audioPolicy: .whenCoreHapticsUnavailable)
+        // A pure load with no presentation policy: `presentedOnboarding` stays
+        // nil until a view explicitly asks via `startOnboardingIfNeeded()`.
+        seenOnboardingMoments = onboardingStore.loadSeenMoments()
         mode = modeCore.currentMode
         launchDefaultMode = modeCore.launchDefaultMode
+        colorTheme = colorThemeStore.loadColorTheme() ?? .wingspanOriginal
         togetherSnapshot = togetherCore.snapshot
         tapInSnapshot = tapInCore.snapshot
         wireCoreEvents()
@@ -131,34 +198,84 @@ public final class ChooserAppModel {
     }
 
     deinit {
-        countdownFeedbackTask?.cancel()
         pinballTask?.cancel()
-        pinballCollisionFeedbackTask?.cancel()
         toastTask?.cancel()
     }
 
     public var selectedModeID: String { mode.rawValue }
 
+    public var colorThemeOptions: [ChooserColorTheme] { ChooserColorTheme.allCases }
+
+    /// A theme shuffle is intentionally narrower than a mode change. It is
+    /// safe only when no provisional touch can commit and no authored feedback
+    /// sequence is in flight. Results and committed groups remain intact.
+    public var canRandomizeColorTheme: Bool {
+        guard isSceneActive,
+              confirmation == nil,
+              Date() >= colorThemeTransitionBlockedUntil else {
+            return false
+        }
+
+        switch mode {
+        case .together:
+            switch togetherSnapshot.phase {
+            case .idle:
+                return togetherSnapshot.participantTouchIDs.isEmpty && togetherVisuals.isEmpty
+            case .revealed:
+                return true
+            case .settling, .countdown:
+                return false
+            }
+        case .tapIn:
+            switch tapInSnapshot.phase {
+            case .collecting:
+                return tapInPending.isEmpty
+            case .revealed:
+                return true
+            case .countdown:
+                return false
+            }
+        case .pinball:
+            switch pinballPhase {
+            case .collecting, .revealed:
+                return true
+            case .running, .revealing:
+                return false
+            }
+        }
+    }
+
+    public func participantHue(at index: Int) -> Double {
+        colorTheme.participantHue(at: index)
+    }
+
     public var modeOptions: NativeModeTriplet {
         NativeModeTriplet(
-            first: NativeModeOption(id: AppMode.together.rawValue, name: "Together", iconArtwork: .orbit),
+            first: NativeModeOption(id: AppMode.together.rawValue, name: "Chooser", iconArtwork: .orbit),
             second: NativeModeOption(id: AppMode.tapIn.rawValue, name: "Tap In", iconArtwork: .numberedTokens),
             third: NativeModeOption(id: AppMode.pinball.rawValue, name: "Pinball", iconArtwork: .analyticTrail)
         )
     }
 
     public var isModeChangeEnabled: Bool {
-        guard tapInPending.isEmpty else { return false }
         switch mode {
         case .together:
-            if case .countdown = togetherSnapshot.phase { return false }
-            return togetherSnapshot.participantTouchIDs.isEmpty
+            switch togetherSnapshot.phase {
+            case .idle, .settling, .revealed:
+                return true
+            case .countdown:
+                return false
+            }
         case .tapIn:
             if case .countdown = tapInSnapshot.phase { return false }
             return true
         case .pinball:
-            if case .collecting = pinballPhase { return true }
-            return false
+            switch pinballPhase {
+            case .collecting, .revealed:
+                return true
+            case .running, .revealing:
+                return false
+            }
         }
     }
 
@@ -166,8 +283,8 @@ public final class ChooserAppModel {
         switch mode {
         case .together:
             switch togetherSnapshot.phase {
-            case .settling, .countdown: true
-            case .idle, .revealed: false
+            case .countdown: true
+            case .idle, .settling, .revealed: false
             }
         case .tapIn:
             if case .countdown = tapInSnapshot.phase { true } else { false }
@@ -175,6 +292,35 @@ public final class ChooserAppModel {
             switch pinballPhase {
             case .running, .revealing: true
             case .collecting, .revealed: false
+            }
+        }
+    }
+
+    public var isSettingsEnabled: Bool {
+        // A first-run surface owns the screen while it is up, so the toolbar
+        // button also renders disabled rather than merely refusing to open.
+        // Note the deliberate asymmetry with `isModeChangeEnabled`, which must
+        // NOT be gated this way — see `requestModeChange(to:)`.
+        guard presentedOnboarding == nil else { return false }
+        switch mode {
+        case .together:
+            switch togetherSnapshot.phase {
+            case .idle:
+                return togetherSnapshot.participantTouchIDs.isEmpty
+            case .revealed:
+                return true
+            case .settling, .countdown:
+                return false
+            }
+        case .tapIn:
+            if case .countdown = tapInSnapshot.phase { return false }
+            return true
+        case .pinball:
+            switch pinballPhase {
+            case .collecting, .revealed:
+                return true
+            case .running, .revealing:
+                return false
             }
         }
     }
@@ -193,34 +339,19 @@ public final class ChooserAppModel {
         return false
     }
 
-    public func requestModeCycle(to option: NativeModeOption) {
+    public func requestModeSelection(_ option: NativeModeOption) {
         guard let target = AppMode(rawValue: option.id), target != mode else { return }
         requestModeChange(to: target)
     }
 
     public func requestModeChange(to target: AppMode) {
+        // Deliberately NOT gated on `presentedOnboarding`. This is the path a
+        // `whosfirst://mode/...` App Shortcut takes, and on a cold launch it
+        // races the first-run presentation. Refusing here would silently
+        // swallow the shortcut with no visible failure. The mode changes
+        // underneath the welcome instead, and completing the welcome retires
+        // the card for whichever mode actually arrived.
         guard target != mode, isModeChangeEnabled else { return }
-
-        switch mode {
-        case .tapIn where !tapInSnapshot.entries.isEmpty:
-            confirmation = .switchMode(
-                target: target,
-                itemCount: tapInSnapshot.entries.count,
-                itemName: tapInSnapshot.entries.count == 1 ? "player" : "players"
-            )
-        case .pinball where !pinballSeats.isEmpty:
-            confirmation = .switchMode(
-                target: target,
-                itemCount: pinballSeats.count,
-                itemName: pinballSeats.count == 1 ? "seat" : "seats"
-            )
-        default:
-            switchImmediately(to: target)
-        }
-    }
-
-    public func confirmPendingModeChange() {
-        guard case .switchMode(let target, _, _) = confirmation else { return }
         confirmation = nil
         switchImmediately(to: target)
     }
@@ -232,22 +363,180 @@ public final class ChooserAppModel {
     public func setCurrentModeAsLaunchDefault() {
         modeCore.setLaunchDefault(mode)
         launchDefaultMode = modeCore.launchDefaultMode
-        feedback.play(.winner)
+        feedback.play(.confirmation)
         showToast("\(mode.accessibilityName) set as default.")
         announce("\(mode.accessibilityName) set as default.")
     }
 
+    public func selectColorTheme(_ theme: ChooserColorTheme) {
+        guard theme != colorTheme else { return }
+        colorTheme = theme
+        colorThemeStore.saveColorTheme(theme)
+        colorThemeTransitionBlockedUntil = Date().addingTimeInterval(0.24)
+        feedback.play(.modeChanged)
+        announce("\(theme.name) colors selected.")
+    }
+
+    /// Selects uniformly from every theme except the currently visible one.
+    /// The existing selection path remains the single authority for saving,
+    /// feedback, animation, and accessibility announcements.
+    @discardableResult
+    public func randomizeColorTheme() -> Bool {
+        guard canRandomizeColorTheme else { return false }
+        let candidates = colorThemeOptions.filter { $0 != colorTheme }
+        guard !candidates.isEmpty else { return false }
+
+        do {
+            let index = try colorThemeRandomIndexGenerator.randomIndex(
+                upperBound: candidates.count
+            )
+            guard candidates.indices.contains(index) else { return false }
+            selectColorTheme(candidates[index])
+            return true
+        } catch {
+            return false
+        }
+    }
+
+    /// Entry point used only by the window-level physical gesture. Together's
+    /// result surface also accepts the first touch of a normal new round, so a
+    /// quick three-finger tap briefly replaces that result before UIKit sends
+    /// cancellation. Restore the saved reveal before applying the theme so the
+    /// shortcut preserves the displayed choice like it does in the other modes.
+    @discardableResult
+    public func randomizeColorThemeAfterPhysicalGesture() -> Bool {
+        restoreTogetherRevealForThemeShuffleIfNeeded()
+        return randomizeColorTheme()
+    }
+
+    @discardableResult
+    public func prepareToPresentSettings() -> Bool {
+        // The settings sheet and the welcome cover are presented from the same
+        // anchor, so they must never overlap. That invariant is enforced here
+        // and by `isSettingsEnabled`, not by SwiftUI. Adding a third
+        // presentation to `ChooserRootView` would break it silently.
+        guard presentedOnboarding == nil else { return false }
+        guard isSettingsEnabled else { return false }
+        // A second finger may open Settings while a Tap In touch is still
+        // provisional. Preserve committed players, but never let that pending
+        // gesture commit invisibly behind the sheet.
+        if mode == .tapIn {
+            tapInPending.removeAll()
+        }
+        return true
+    }
+
+    // MARK: - First-run introduction
+
+    /// Called once from the root view's first appearance. Idempotent.
+    public func startOnboardingIfNeeded() {
+        presentOnboardingIfNeeded()
+    }
+
+    /// The mode card currently showing, if any, as a welcome page identity.
+    public var presentedModeIntroPage: NativeWelcomePage? {
+        guard case .modeCard(let mode) = presentedOnboarding else { return nil }
+        return NativeWelcomePage(mode: mode)
+    }
+
+    /// Ordered precedence, shared by the first appearance and every session
+    /// mode change, so the two are order independent on a cold launch.
+    private func presentOnboardingIfNeeded() {
+        // 1. Never stack one introduction on another.
+        guard presentedOnboarding == nil else { return }
+        // 2. Never cover a live draw or an alert, and never queue behind one.
+        //    Defensive in practice: `isModeChangeEnabled` is already false
+        //    during a critical interaction, so a mode change cannot land here
+        //    mid-flight.
+        guard confirmation == nil, !isCriticalInteractionActive else { return }
+        // 3. The welcome outranks any per-mode card.
+        guard seenOnboardingMoments.contains(.welcome) else {
+            presentedOnboarding = .welcome
+            return
+        }
+        // 4. Otherwise introduce the mode being entered, once.
+        guard !seenOnboardingMoments.contains(.modeCard(mode)) else { return }
+        presentedOnboarding = .modeCard(mode)
+    }
+
+    /// Retires whatever is showing. Finishing or skipping the welcome also
+    /// retires the card for the mode on screen at that instant: the carousel
+    /// just covered it, so following it with a second modal is noise. The other
+    /// modes still get their card the first time they are actually opened.
+    public func completeOnboarding() {
+        guard let moment = presentedOnboarding else { return }
+        switch moment {
+        case .welcome:
+            markOnboardingMomentsSeen([.welcome, .modeCard(mode)])
+        case .modeCard(let cardMode):
+            markOnboardingMomentsSeen([.modeCard(cardMode)])
+        }
+        presentedOnboarding = nil
+        feedback.play(.confirmation)
+    }
+
+    /// Skipping writes exactly the same progress as finishing, so "seen" has a
+    /// single meaning.
+    public func skipOnboarding() {
+        completeOnboarding()
+    }
+
+    /// Dismisses a visible mode card as soon as the person touches the board.
+    /// Someone who already knows what to do should not have to aim at a button.
+    public func noteModeInteraction() {
+        guard case .modeCard = presentedOnboarding else { return }
+        completeOnboarding()
+    }
+
+    /// Arms a replay from Settings. Clears no progress: replaying shows the
+    /// welcome again and never restores the per-mode cards.
+    public func requestWelcomeReplay() {
+        isWelcomeReplayRequested = true
+    }
+
+    /// Consumed from the settings sheet's `onDismiss`, so the cover is never
+    /// asked to present while the sheet is still on screen.
+    public func presentWelcomeReplayIfRequested() {
+        guard isWelcomeReplayRequested else { return }
+        isWelcomeReplayRequested = false
+        guard presentedOnboarding == nil,
+              confirmation == nil,
+              !isCriticalInteractionActive else { return }
+        presentedOnboarding = .welcome
+    }
+
+    /// The only method that writes the onboarding store. One user action is one
+    /// write, and an unchanged set writes nothing at all — which is what makes
+    /// a replay provably free of side effects.
+    private func markOnboardingMomentsSeen(_ moments: Set<OnboardingMoment>) {
+        let updated = seenOnboardingMoments.union(moments)
+        guard updated != seenOnboardingMoments else { return }
+        seenOnboardingMoments = updated
+        onboardingStore.saveSeenMoments(updated)
+    }
+
     public func togetherTouchBegan(_ event: NativeTouchEvent) {
         guard mode == .together else { return }
+        // The first touch on the board retires a visible introduction card.
+        noteModeInteraction()
+        if togetherSnapshot.participantTouchIDs.isEmpty {
+            feedback.prepare()
+        }
         let identity = TogetherTouchIdentity(rawValue: event.id)
         if case .revealed = togetherSnapshot.phase {
+            togetherRevealedThemeShuffleBackup = TogetherRevealedThemeShuffleBackup(
+                snapshot: togetherSnapshot,
+                visuals: togetherVisuals,
+                hueIndex: togetherHueIndex,
+                capturedAt: Date()
+            )
             togetherVisuals.removeAll()
             togetherHueIndex = 0
         }
         let visual = TogetherTouchVisual(
             id: identity,
             location: event.location,
-            hue: goldenAngleHue(at: togetherHueIndex)
+            colorIndex: togetherHueIndex
         )
         if togetherCore.touchBegan(identity) {
             togetherVisuals[identity] = visual
@@ -257,11 +546,18 @@ public final class ChooserAppModel {
     }
 
     public func togetherTouchMoved(_ event: NativeTouchEvent) {
+        guard mode == .together else { return }
         let identity = TogetherTouchIdentity(rawValue: event.id)
         togetherVisuals[identity]?.location = event.location
     }
 
     public func togetherTouchEnded(_ event: NativeTouchEvent, cancelled: Bool) {
+        guard mode == .together else { return }
+        if !cancelled {
+            // A completed touch is an ordinary request to begin a fresh round,
+            // not the window recognizer cancelling its provisional touches.
+            togetherRevealedThemeShuffleBackup = nil
+        }
         let identity = TogetherTouchIdentity(rawValue: event.id)
         if cancelled {
             _ = togetherCore.touchCancelled(identity)
@@ -274,8 +570,60 @@ public final class ChooserAppModel {
         togetherVisuals.removeValue(forKey: identity)
     }
 
+    /// Semantic fallback for people who cannot place several physical fingers
+    /// at once. The same Together state machine, timing, haptics, and secure
+    /// selection are used; only the touch identities and positions are virtual.
+    @discardableResult
+    public func chooseTogetherForAccessibility(
+        participantCount: Int,
+        in playfieldSize: CGSize
+    ) -> Bool {
+        guard mode == .together,
+              (2...5).contains(participantCount),
+              playfieldSize.width.isFinite,
+              playfieldSize.height.isFinite,
+              playfieldSize.width > 0,
+              playfieldSize.height > 0,
+              isModeChangeEnabled else {
+            return false
+        }
+
+        // Parity with a physical board touch: activating the stage via an
+        // accessibility action also retires a visible introduction card.
+        noteModeInteraction()
+        feedback.cancelSequence()
+        countdownStartedAt = nil
+        togetherCore.reset()
+        togetherVisuals.removeAll()
+        togetherHueIndex = 0
+
+        let radiusX = min(playfieldSize.width * 0.29, 128)
+        let radiusY = min(playfieldSize.height * 0.27, 112)
+        let center = CGPoint(
+            x: playfieldSize.width / 2,
+            y: playfieldSize.height / 2
+        )
+        for index in 0..<participantCount {
+            let angle = -CGFloat.pi / 2
+                + 2 * CGFloat.pi * CGFloat(index) / CGFloat(participantCount)
+            togetherTouchBegan(
+                NativeTouchEvent(
+                    id: UInt64.max - UInt64(index),
+                    location: CGPoint(
+                        x: center.x + cos(angle) * radiusX,
+                        y: center.y + sin(angle) * radiusY
+                    )
+                )
+            )
+        }
+        announce("Choosing from \(participantCount) people.")
+        return true
+    }
+
     public func tapInTouchBegan(_ event: NativeTouchEvent) {
         guard mode == .tapIn, case .collecting = tapInSnapshot.phase else { return }
+        // The first touch on the board retires a visible introduction card.
+        noteModeInteraction()
         guard tapInSnapshot.entries.count + tapInPending.count < TapInChooserCore.maximumPlayerCount else {
             feedback.play(.warning)
             announce("50-player limit reached. Pick when ready.")
@@ -285,22 +633,23 @@ public final class ChooserAppModel {
         tapInPending[event.id] = TapInPendingVisual(
             touchID: event.id,
             location: event.location,
-            number: number,
-            hue: goldenAngleHue(at: number - 1)
+            number: number
         )
-        feedback.play(.entryCommitted)
     }
 
     public func tapInTouchMoved(_ event: NativeTouchEvent) {
+        guard mode == .tapIn else { return }
         tapInPending[event.id]?.location = event.location
     }
 
     public func tapInTouchEnded(_ event: NativeTouchEvent, cancelled: Bool) {
+        guard mode == .tapIn else { return }
         guard let pending = tapInPending.removeValue(forKey: event.id) else { return }
         guard !cancelled else { return }
         do {
             let entry = try tapInCore.addEntry()
             tapInTravelOrigins[entry.id] = pending.location
+            feedback.play(.entryCommitted)
             Task { @MainActor [weak self] in
                 try? await Task.sleep(for: .milliseconds(60))
                 self?.tapInTravelOrigins.removeValue(forKey: entry.id)
@@ -313,6 +662,9 @@ public final class ChooserAppModel {
     @discardableResult
     public func addTapInEntryForAccessibility() -> Bool {
         guard mode == .tapIn, case .collecting = tapInSnapshot.phase else { return false }
+        // Parity with a physical board touch: activating the stage via an
+        // accessibility action also retires a visible introduction card.
+        noteModeInteraction()
         do {
             _ = try tapInCore.addEntry()
             feedback.play(.entryCommitted)
@@ -327,7 +679,7 @@ public final class ChooserAppModel {
         do {
             let removed = try tapInCore.undo()
             tapInTravelOrigins.removeValue(forKey: removed.id)
-            feedback.play(.modeChanged)
+            feedback.play(.undo)
         } catch {
             feedback.play(.warning)
         }
@@ -339,12 +691,12 @@ public final class ChooserAppModel {
     }
 
     public func confirmClearTapIn() {
-        guard case .clearTapIn = confirmation else { return }
         confirmation = nil
+        guard !tapInSnapshot.entries.isEmpty else { return }
         do {
             try tapInCore.clear()
             tapInTravelOrigins.removeAll()
-            feedback.play(.destructive)
+            feedback.play(.clearCommitted)
         } catch {
             feedback.play(.warning)
         }
@@ -367,11 +719,19 @@ public final class ChooserAppModel {
         }
     }
 
+    public func dismissTapInResult() {
+        do {
+            try tapInCore.dismissResult()
+        } catch {
+            feedback.play(.warning)
+        }
+    }
+
     public func newTapInGroup() {
         tapInCore.newGroup()
         tapInPending.removeAll()
         tapInTravelOrigins.removeAll()
-        feedback.play(.destructive)
+        feedback.play(.clearCommitted)
     }
 
     public func updatePinballPlayfield(size: CGSize) {
@@ -387,9 +747,11 @@ public final class ChooserAppModel {
 
     public func addPinballSeat(at point: CGPoint) {
         guard mode == .pinball, case .collecting = pinballPhase else { return }
+        // The first touch on the board retires a visible introduction card.
+        noteModeInteraction()
         guard pinballSeats.count < 12 else {
             feedback.play(.warning)
-            announce("12-seat limit reached. Start when ready.")
+            announce("12-seat limit reached. Flick when ready.")
             return
         }
         guard pinballPlayfieldSize.width > 0, pinballPlayfieldSize.height > 0 else { return }
@@ -404,13 +766,24 @@ public final class ChooserAppModel {
 
         let seat = NativePinballSeat(id: pinballSeats.count + 1, normalizedLocation: normalized)
         pinballSeats.append(seat)
+        pinballTravelOrigins[seat.id] = point
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .milliseconds(70))
+            self?.pinballTravelOrigins.removeValue(forKey: seat.id)
+        }
         feedback.play(.entryCommitted)
-        announce("Seat \(seat.id) added. \(pinballSeats.count) seats total.")
+        let readiness = pinballSeats.count == 2
+            ? " Flick in any direction when ready."
+            : ""
+        announce("Seat \(seat.id) added. \(pinballSeats.count) seats total.\(readiness)")
     }
 
     @discardableResult
     public func addPinballSeatForAccessibility() -> Bool {
         guard pinballSeats.count < 12 else { return false }
+        // Parity with a physical board touch: activating the stage via an
+        // accessibility action also retires a visible introduction card.
+        noteModeInteraction()
         configureAccessiblePinballSeats(count: max(2, pinballSeats.count + 1))
         return true
     }
@@ -428,13 +801,15 @@ public final class ChooserAppModel {
                 )
             )
         }
-        feedback.play(.modeChanged)
-        announce("Configured \(count) evenly spaced seats.")
+        pinballTravelOrigins.removeAll()
+        feedback.play(.confirmation)
+        announce("Configured \(count) evenly spaced seats. Flick in any direction when ready.")
     }
 
     public func undoPinballSeat() {
         guard case .collecting = pinballPhase, let removed = pinballSeats.popLast() else { return }
-        feedback.play(.modeChanged)
+        pinballTravelOrigins.removeValue(forKey: removed.id)
+        feedback.play(.undo)
         announce("Seat \(removed.id) removed. \(pinballSeats.count) seats total.")
     }
 
@@ -444,66 +819,224 @@ public final class ChooserAppModel {
     }
 
     public func confirmClearPinball() {
-        guard case .clearPinball = confirmation else { return }
         confirmation = nil
+        guard !pinballSeats.isEmpty else { return }
         clearPinballGroup()
-        feedback.play(.destructive)
+        feedback.play(.clearCommitted)
     }
 
-    public func startPinball(reduceMotion: Bool) {
-        guard pinballCanStart else { return }
-        pinballTask?.cancel()
+    public func handlePinballGesture(
+        _ action: NativePinballGestureAction,
+        reduceMotion: Bool
+    ) {
+        guard mode == .pinball, case .collecting = pinballPhase else { return }
+        // The first touch on the board retires a visible introduction card.
+        noteModeInteraction()
+        switch action {
+        case .seat(let payload):
+            addPinballSeat(at: payload.end)
+        case .flick(let payload):
+            guard pinballCanStart, let intent = payload.flickIntent else {
+                feedback.play(.warning)
+                announce("Add at least two seats before flicking.")
+                return
+            }
+            startPinball(flickIntent: intent, reduceMotion: reduceMotion)
+        }
+    }
 
+    public func startPinball(
+        flickIntent: PinballFlickIntent,
+        reduceMotion: Bool
+    ) {
+        guard pinballCanStart else { return }
         do {
             let partition = try makePinballPartition()
-            let perimeter = partition.bounds.width * 2 + partition.bounds.height * 2
-            var random = SecurePinballRandomSource()
-            let result = try PinballRoundResolver.randomRound(
+            let result = try PinballRoundResolver.secureFlickRound(
                 partition: partition,
-                distanceRange: (perimeter * 10)...(perimeter * 16),
-                using: &random
+                intent: flickIntent
             )
-            let curve = try PinballDecelerationCurve(duration: 5, exponent: 3.2)
-            let run = NativePinballRun(result: result, curve: curve)
-
-            if reduceMotion {
-                pinballPhase = .revealing(run: run, pulse: 1, isLit: true)
-                feedback.play(.winner)
-                announce("Seat \(result.winningSeatID) goes first.")
-                pinballTask = Task { @MainActor [weak self] in
-                    try? await Task.sleep(for: .milliseconds(650))
-                    guard !Task.isCancelled else { return }
-                    self?.pinballPhase = .revealed(run)
-                }
-            } else {
-                pinballPhase = .running(run)
-                announce("Pinball running from \(pinballSeats.count) seats.")
-                startPinballCollisionFeedback(for: run)
-                pinballTask = Task { @MainActor [weak self] in
-                    do {
-                        try await Task.sleep(for: .seconds(5))
-                        guard !Task.isCancelled else { return }
-                        await self?.performPinballReveal(run)
-                    } catch {
-                        return
-                    }
-                }
-            }
+            let duration = try PinballFlickLaunchPolicy.flightDuration(
+                forSpeed: flickIntent.speed
+            )
+            let strength = try PinballFlickLaunchPolicy.normalizedStrength(
+                forSpeed: flickIntent.speed
+            )
+            try beginPinballRun(
+                result: result,
+                flightDuration: duration,
+                normalizedStrength: strength,
+                reduceMotion: reduceMotion
+            )
         } catch {
             feedback.play(.warning)
-            announce("Pinball could not start. Adjust the seats and try again.")
+            announce("Pinball could not launch. Flick again when ready.")
+        }
+    }
+
+    /// Accessibility fallback for people who cannot perform a directional flick.
+    /// The system generator supplies a secure direction from the visible center
+    /// release point when a directional gesture is unavailable.
+    public func startPinball(reduceMotion: Bool) {
+        guard pinballCanStart else { return }
+        do {
+            let partition = try makePinballPartition()
+            var random = SecurePinballRandomSource()
+            let speed = PinballFlickLaunchPolicy.speedRange.lowerBound +
+                (PinballFlickLaunchPolicy.speedRange.upperBound -
+                    PinballFlickLaunchPolicy.speedRange.lowerBound) / 2
+            let intent = try PinballFlickIntent(
+                releasePoint: partition.center,
+                direction: PinballSampling.uniformDirection(using: &random),
+                speed: speed
+            )
+            let result = try PinballRoundResolver.flickRound(
+                partition: partition,
+                intent: intent,
+                using: &random
+            )
+            try beginPinballRun(
+                result: result,
+                flightDuration: try PinballFlickLaunchPolicy.flightDuration(forSpeed: speed),
+                normalizedStrength: try PinballFlickLaunchPolicy.normalizedStrength(
+                    forSpeed: speed
+                ),
+                reduceMotion: reduceMotion
+            )
+        } catch {
+            feedback.play(.warning)
+            announce("Pinball could not launch. Try again when ready.")
+        }
+    }
+
+    private func beginPinballRun(
+        result: PinballRoundResult,
+        flightDuration: TimeInterval,
+        normalizedStrength: CGFloat,
+        reduceMotion: Bool
+    ) throws {
+        pinballTask?.cancel()
+        pinballTask = nil
+        pinballPendingCollisionFeedback.removeAll()
+        pinballEndpointSettleCueRunID = nil
+        pinballFinishEnqueuedRunID = nil
+        let curve = try PinballMotionProfile(duration: flightDuration)
+        let launchEnergy = PinballFlickLaunchPolicy.launchEnergy(
+            forStrength: normalizedStrength
+        )
+        let run = NativePinballRun(
+            result: result,
+            curve: curve,
+            normalizedStrength: Double(normalizedStrength),
+            launchEnergy: Double(launchEnergy)
+        )
+
+        if reduceMotion {
+            pinballPhase = .revealing(run: run, pulse: 1, isLit: true)
+            feedback.play(.pinballSettle)
+            announce("Seat \(result.winningSeatID) goes first.")
+            pinballTask = Task { @MainActor [weak self] in
+                do {
+                    try await Task.sleep(for: Self.pinballWinnerRevealDuration)
+                } catch {
+                    return
+                }
+                guard !Task.isCancelled,
+                      let self,
+                      case .revealing(let activeRun, _, _) = self.pinballPhase,
+                      activeRun.id == run.id else { return }
+                self.pinballPhase = .revealed(run)
+            }
+        } else {
+            pinballPhase = .running(run)
+            pinballPendingCollisionFeedback = Dictionary(
+                uniqueKeysWithValues: Self.pinballCollisionFeedbackEvents(for: run).map {
+                    ($0.vertexIndex, $0)
+                }
+            )
+            feedback.play(.pinballLaunch(strength: Double(normalizedStrength)))
+            announce("Pinball running from \(pinballSeats.count) seats.")
+        }
+    }
+
+    /// Delivers a collision cue only when the active SpriteKit replay presents
+    /// the corresponding analytic wall vertex. Removing the expected event
+    /// makes duplicated frames, rebuilt views, and stale scene callbacks inert.
+    func handlePinballRenderedImpact(
+        runID: UUID,
+        impact: NativeAnalyticReplayImpact
+    ) {
+        guard case .running(let run) = pinballPhase,
+              run.id == runID,
+              let expected = pinballPendingCollisionFeedback[impact.vertexIndex],
+              abs(expected.progress - impact.progress) <= 1e-7,
+              expected.isFairnessDeflection == impact.isFairnessDeflection else { return }
+
+        pinballPendingCollisionFeedback.removeValue(forKey: impact.vertexIndex)
+        if expected.isFairnessDeflection {
+            feedback.play(
+                .pinballFairBounce(
+                    speedFraction: impact.speedFraction,
+                    normalImpulseFraction: impact.wallNormalImpulseFraction
+                )
+            )
+            announce("Fair bounce.")
+        } else {
+            feedback.play(
+                .pinballCollision(
+                speedFraction: impact.speedFraction,
+                normalImpulseFraction: impact.wallNormalImpulseFraction,
+                isCorner: impact.isCorner
+                )
+            )
+        }
+    }
+
+    /// The replay scene owns the physical endpoint settle. Deliver its thud on
+    /// the exact frame that visibly reaches maximum compression, while the
+    /// ball is still the same running SpriteKit object.
+    func handlePinballRenderedEndpointCompression(runID: UUID) {
+        guard case .running(let run) = pinballPhase,
+              run.id == runID,
+              pinballEndpointSettleCueRunID != runID else { return }
+
+        pinballEndpointSettleCueRunID = runID
+        pinballPendingCollisionFeedback.removeAll()
+        feedback.play(.pinballSettle)
+    }
+
+    /// The visible replay owns completion timing. The resolved analytic run
+    /// remains the sole authority for endpoint and winner identity.
+    func handlePinballReplayFinished(runID: UUID) {
+        guard case .running(let run) = pinballPhase,
+              run.id == runID,
+              pinballFinishEnqueuedRunID != runID else { return }
+
+        pinballFinishEnqueuedRunID = runID
+        pinballTask?.cancel()
+        pinballTask = Task { @MainActor [weak self] in
+            // Leave the SpriteKit update stack before publishing SwiftUI state.
+            await Task.yield()
+            guard !Task.isCancelled, let self else { return }
+            await self.performPinballReveal(run)
         }
     }
 
     public func playPinballAgain(reduceMotion: Bool) {
         guard case .revealed = pinballPhase else { return }
         pinballPhase = .collecting
-        startPinball(reduceMotion: reduceMotion)
+        announce("Same seats ready. Flick when ready.")
+    }
+
+    public func dismissPinballResult() {
+        guard case .revealed = pinballPhase else { return }
+        pinballPhase = .collecting
+        announce("Same seats ready. Flick when ready.")
     }
 
     public func newPinballGroup() {
         clearPinballGroup()
-        feedback.play(.destructive)
+        feedback.play(.clearCommitted)
         announce("New Pinball group ready.")
     }
 
@@ -518,9 +1051,22 @@ public final class ChooserAppModel {
         )
     }
 
+    public func pinballSeatTokenLayout() -> PinballSeatTokenLayout? {
+        guard let partition = pinballPartition() else { return nil }
+        return PinballSeatTokenSizing.layout(
+            for: partition,
+            in: pinballPlayfieldSize
+        )
+    }
+
     public func handleSceneBecameInactive() {
-        countdownFeedbackTask?.cancel()
-        countdownFeedbackTask = nil
+        // Deliberately does NOT clear `presentedOnboarding`, which is the one
+        // exception to this method's "wipe transient state" contract. The
+        // introduction is not round state: dismissing it on a phone call would
+        // lose the tour without ever writing the flag, so it would come back on
+        // some later launch. Do not "tidy" this by adding it below.
+        isSceneActive = false
+        togetherRevealedThemeShuffleBackup = nil
         countdownStartedAt = nil
         feedback.stopAll()
         tapInPending.removeAll()
@@ -530,6 +1076,11 @@ public final class ChooserAppModel {
         if pinballPhase.run != nil {
             cancelPinballRun(announceCancellation: true)
         }
+    }
+
+    public func handleSceneBecameActive() {
+        isSceneActive = true
+        feedback.prepare()
     }
 
     private func wireCoreEvents() {
@@ -579,11 +1130,17 @@ public final class ChooserAppModel {
         modeCore.select(target, persistAsLaunchDefault: false)
         mode = target
         feedback.play(.modeChanged)
+        // The single mode-change authority for the menu, App Shortcuts, and
+        // deep links alike, so this one hook covers every route into a mode.
+        presentOnboardingIfNeeded()
     }
 
     private func resetCurrentMode() {
-        countdownFeedbackTask?.cancel()
         countdownStartedAt = nil
+        togetherRevealedThemeShuffleBackup = nil
+        // A mode selection is an immediate reset. Stop the full tactile/audio
+        // envelope as well as scheduled anticipation and collision events.
+        feedback.stopAll()
         switch mode {
         case .together:
             togetherCore.reset()
@@ -608,64 +1165,93 @@ public final class ChooserAppModel {
     }
 
     private func handleTogetherPhaseChange(from old: TogetherPhase, to new: TogetherPhase) {
+        if isRestoringTogetherRevealForThemeShuffle {
+            countdownStartedAt = nil
+            feedback.cancelSequence()
+            return
+        }
+
         switch new {
+        case .countdown where !sameTogetherPhaseKind(old, new):
+            togetherRevealedThemeShuffleBackup = nil
+            startCountdownFeedback(.togetherCountdown)
         case .countdown:
-            startCountdownFeedback()
+            break
         case .revealed where !sameTogetherPhaseKind(old, new):
-            countdownFeedbackTask?.cancel()
             countdownStartedAt = nil
-            feedback.play(.winner)
-        case .idle, .settling:
-            countdownFeedbackTask?.cancel()
+            feedback.cancelSequence()
+            feedback.play(.chooserWinner)
+        case .settling:
             countdownStartedAt = nil
+            // A late finger can move an active countdown back into the silent
+            // stability window. Stop the old anticipation envelope so its
+            // remaining impacts cannot leak into the restarted settle.
+            if case .countdown = old {
+                feedback.cancelSequence()
+            }
+            feedback.play(.settling(duration: togetherCore.settlingDuration))
+        case .idle:
+            countdownStartedAt = nil
+            feedback.cancelSequence()
         case .revealed:
             break
         }
+    }
+
+    private func restoreTogetherRevealForThemeShuffleIfNeeded() {
+        guard mode == .together,
+              let backup = togetherRevealedThemeShuffleBackup else {
+            return
+        }
+        togetherRevealedThemeShuffleBackup = nil
+
+        // A UIKit tap recognizer resolves quickly. Bounding this restoration
+        // prevents an unrelated later gesture from reviving a stale result if
+        // the system cancelled touches for some other reason.
+        guard Date().timeIntervalSince(backup.capturedAt) <= 2 else { return }
+
+        isRestoringTogetherRevealForThemeShuffle = true
+        defer { isRestoringTogetherRevealForThemeShuffle = false }
+        guard togetherCore.restoreRevealedSnapshot(backup.snapshot) else { return }
+        togetherVisuals = backup.visuals
+        togetherHueIndex = backup.hueIndex
     }
 
     private func handleTapInPhaseChange(from old: TapInPhase, to new: TapInPhase) {
         switch new {
+        case .countdown where !sameTapInPhaseKind(old, new):
+            startCountdownFeedback(.tapInCountdown(duration: 1.0))
         case .countdown:
-            startCountdownFeedback()
+            break
         case .revealed where !sameTapInPhaseKind(old, new):
-            countdownFeedbackTask?.cancel()
             countdownStartedAt = nil
-            feedback.play(.winner)
+            feedback.cancelSequence()
+            feedback.play(.choiceWinner)
         case .collecting:
-            countdownFeedbackTask?.cancel()
             countdownStartedAt = nil
+            feedback.cancelSequence()
         case .revealed:
             break
         }
     }
 
-    private func startCountdownFeedback() {
-        countdownFeedbackTask?.cancel()
+    private func startCountdownFeedback(_ cue: NativeFeedbackCue) {
+        // Start the authored pattern first, then anchor the visual clock as
+        // close as possible to the player's real start. If Core Haptics must
+        // restart its engine, setup latency is paid before SwiftUI begins the
+        // matching compression timeline instead of visibly leading it.
+        feedback.play(cue)
         countdownStartedAt = Date()
-        countdownFeedbackTask = Task { @MainActor [weak self] in
-            let moments: [(Duration, Double)] = [
-                (.zero, 0.12),
-                (.milliseconds(360), 0.42),
-                (.milliseconds(650), 0.68),
-                (.milliseconds(860), 0.90)
-            ]
-            var elapsed = Duration.zero
-            for (moment, progress) in moments {
-                do {
-                    try await Task.sleep(for: moment - elapsed)
-                } catch {
-                    return
-                }
-                guard !Task.isCancelled else { return }
-                self?.feedback.play(.countdown(progress: progress))
-                elapsed = moment
-            }
-        }
     }
 
     private func makePinballPartition() throws -> PinballRadialPartition {
-        let radius: CGFloat = 9
-        let bounds = CGRect(origin: .zero, size: pinballPlayfieldSize).insetBy(dx: radius, dy: radius)
+        // Keep the complete satin ball and its contact shadow inside the
+        // clipped playfield while still letting it visually compress at walls.
+        let collisionInset = NativePinballReplayMetrics.collisionInset
+        let bounds = CGRect(origin: .zero, size: pinballPlayfieldSize).insetBy(
+            dx: collisionInset,
+            dy: collisionInset
+        )
         let taps = pinballSeats.map { seat in
             let raw = pinballPoint(for: seat)
             let clamped = CGPoint(
@@ -685,52 +1271,48 @@ public final class ChooserAppModel {
     }
 
     private func performPinballReveal(_ run: NativePinballRun) async {
-        pinballCollisionFeedbackTask?.cancel()
-        pinballCollisionFeedbackTask = nil
-        for pulse in 1...4 {
-            guard !Task.isCancelled else { return }
-            pinballPhase = .revealing(run: run, pulse: pulse, isLit: true)
-            let frequency = 420 + Double(pulse - 1) * 120
-            feedback.play(
-                .custom(
-                    NativeCustomFeedback(
-                        intensity: 0.45 + Float(pulse) * 0.12,
-                        sharpness: 0.55 + Float(pulse) * 0.08,
-                        duration: 0.055,
-                        audioFrequencies: [frequency]
-                    )
-                )
-            )
-            do {
-                try await Task.sleep(for: .milliseconds(180))
-            } catch { return }
-            pinballPhase = .revealing(run: run, pulse: pulse, isLit: false)
-            do {
-                try await Task.sleep(for: .milliseconds(260))
-            } catch { return }
-        }
-        pinballPhase = .revealed(run)
+        guard case .running(let activeRun) = pinballPhase,
+              activeRun.id == run.id else { return }
+
+        pinballPendingCollisionFeedback.removeAll()
+
+        pinballPhase = .revealing(run: run, pulse: 1, isLit: true)
         announce("Seat \(run.result.winningSeatID) goes first.")
+
+        do {
+            try await Task.sleep(for: Self.pinballWinnerRevealDuration)
+        } catch {
+            return
+        }
+        guard !Task.isCancelled,
+              case .revealing(let activeRun, _, _) = pinballPhase,
+              activeRun.id == run.id else { return }
+        pinballPhase = .revealed(run)
+        pinballFinishEnqueuedRunID = nil
+        pinballTask = nil
     }
 
     private func cancelPinballRun(announceCancellation: Bool) {
         pinballTask?.cancel()
         pinballTask = nil
-        pinballCollisionFeedbackTask?.cancel()
-        pinballCollisionFeedbackTask = nil
+        pinballPendingCollisionFeedback.removeAll()
+        pinballEndpointSettleCueRunID = nil
+        pinballFinishEnqueuedRunID = nil
         pinballPhase = .collecting
         feedback.stopAll()
         if announceCancellation {
-            announce("Pinball canceled. Start again when ready.")
+            announce("Pinball canceled. Flick again when ready.")
         }
     }
 
     private func clearPinballGroup() {
         pinballTask?.cancel()
         pinballTask = nil
-        pinballCollisionFeedbackTask?.cancel()
-        pinballCollisionFeedbackTask = nil
+        pinballPendingCollisionFeedback.removeAll()
+        pinballEndpointSettleCueRunID = nil
+        pinballFinishEnqueuedRunID = nil
         pinballSeats.removeAll()
+        pinballTravelOrigins.removeAll()
         pinballPhase = .collecting
     }
 
@@ -744,57 +1326,65 @@ public final class ChooserAppModel {
         }
     }
 
-    /// Schedules cues from the exact analytic wall-event distances. Converting
-    /// each path fraction through the inverse slowdown curve keeps clicks and
-    /// taps synchronized without tying correctness to display refresh rate.
-    private func startPinballCollisionFeedback(for run: NativePinballRun) {
-        pinballCollisionFeedbackTask?.cancel()
-        let totalDistance = run.result.trajectory.launch.distance
-        guard totalDistance > 0 else { return }
+    static func pinballCollisionFeedbackEvents(
+        for run: NativePinballRun
+    ) -> [NativePinballCollisionFeedbackEvent] {
+        let trajectory = run.result.trajectory
+        let totalDistance = trajectory.launch.distance
+        guard totalDistance > 0 else { return [] }
 
-        var collisionTimes: [TimeInterval] = []
-        var lastAccepted: TimeInterval = -.infinity
-        for segment in run.result.trajectory.segments.dropLast() {
+        let lastAllowedTime = max(0, run.curve.duration - pinballWinnerQuietWindow)
+        var events: [NativePinballCollisionFeedbackEvent] = []
+        var lastAcceptedTime: TimeInterval = 0
+        let fairnessDeflectorVertexIndex = run.result.fairnessDeflectorVertexIndex
+
+        for (segmentOffset, segment) in trajectory.segments.dropLast().enumerated() {
+            let vertexIndex = segmentOffset + 1
             let pathProgress = min(1, max(0, segment.endDistance / totalDistance))
-            let normalizedTime = 1 - pow(1 - Double(pathProgress), 1 / Double(run.curve.exponent))
-            let time = normalizedTime * run.curve.duration
-            // Extremely fast opening bounces can be closer than hardware can
-            // express. Coalesce those while retaining the actual wall timing.
-            if time - lastAccepted >= 0.075 {
-                collisionTimes.append(time)
-                lastAccepted = time
+            let time = run.curve.elapsedTime(atProgress: pathProgress)
+            let isFairnessDeflection = vertexIndex == fairnessDeflectorVertexIndex
+
+            // Leave the launch and winner their own tactile space. Closely
+            // clustered early bounces remain visible but become one readable
+            // physical impact instead of saturating the Taptic Engine. The one
+            // authored Fair Bounce is exempt: its haptic is part of explaining
+            // the visible intervention and must land on that exact frame.
+            if !isFairnessDeflection {
+                guard time >= pinballCollisionMinimumSpacing,
+                      time <= lastAllowedTime,
+                      time - lastAcceptedTime >= pinballCollisionMinimumSpacing else { continue }
             }
+
+            events.append(
+                NativePinballCollisionFeedbackEvent(
+                    vertexIndex: vertexIndex,
+                    progress: pathProgress,
+                    time: time,
+                    speedFraction: run.launchEnergy *
+                        Double(run.curve.remainingSpeedFraction(at: time)),
+                    isCorner: Self.isPinballCorner(segment.end, in: trajectory.bounds),
+                    isFairnessDeflection: isFairnessDeflection
+                )
+            )
+            // A Fair Bounce cannot be thinned, but it still reserves tactile
+            // space so a routine wall tap cannot blur its springy body.
+            lastAcceptedTime = time
         }
 
-        pinballCollisionFeedbackTask = Task { @MainActor [weak self] in
-            var elapsed: TimeInterval = 0
-            for collisionTime in collisionTimes {
-                do {
-                    try await Task.sleep(for: .seconds(max(0, collisionTime - elapsed)))
-                } catch { return }
-                guard !Task.isCancelled else { return }
-                let progress = min(1, collisionTime / run.curve.duration)
-                self?.feedback.play(
-                    .custom(
-                        NativeCustomFeedback(
-                            intensity: Float(0.28 + (1 - progress) * 0.34),
-                            sharpness: Float(0.42 + (1 - progress) * 0.38),
-                            duration: 0.035,
-                            audioFrequencies: [105 + (1 - progress) * 95]
-                        )
-                    )
-                )
-                elapsed = collisionTime
-            }
-        }
+        return events
+    }
+
+    private static func isPinballCorner(_ point: CGPoint, in bounds: CGRect) -> Bool {
+        let tolerance = max(1e-6, max(bounds.width, bounds.height) * 1e-9)
+        let hitsVertical = abs(point.x - bounds.minX) <= tolerance ||
+            abs(point.x - bounds.maxX) <= tolerance
+        let hitsHorizontal = abs(point.y - bounds.minY) <= tolerance ||
+            abs(point.y - bounds.maxY) <= tolerance
+        return hitsVertical && hitsHorizontal
     }
 
     private func announce(_ message: String) {
         AccessibilityNotification.Announcement(message).post()
-    }
-
-    private func goldenAngleHue(at index: Int) -> Double {
-        (Double(index) * 137.508).truncatingRemainder(dividingBy: 360)
     }
 
     private func sameTogetherPhaseKind(_ lhs: TogetherPhase, _ rhs: TogetherPhase) -> Bool {

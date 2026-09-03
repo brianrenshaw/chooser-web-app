@@ -30,6 +30,46 @@ final class MemoryLaunchDefaultModeStore: LaunchDefaultModePersisting {
     }
 }
 
+@MainActor
+final class MemoryChooserColorThemeStore: ChooserColorThemePersisting {
+    var storedTheme: ChooserColorTheme?
+    private(set) var savedThemes: [ChooserColorTheme] = []
+
+    init(storedTheme: ChooserColorTheme? = nil) {
+        self.storedTheme = storedTheme
+    }
+
+    func loadColorTheme() -> ChooserColorTheme? {
+        storedTheme
+    }
+
+    func saveColorTheme(_ theme: ChooserColorTheme) {
+        storedTheme = theme
+        savedThemes.append(theme)
+    }
+}
+
+@MainActor
+final class MemoryOnboardingProgressStore: OnboardingProgressPersisting {
+    var storedMoments: Set<OnboardingMoment>
+    /// Write log, so a test can assert that **no** write happened rather than
+    /// only that the value is unchanged.
+    private(set) var savedMomentSets: [Set<OnboardingMoment>] = []
+
+    init(storedMoments: Set<OnboardingMoment> = []) {
+        self.storedMoments = storedMoments
+    }
+
+    func loadSeenMoments() -> Set<OnboardingMoment> {
+        storedMoments
+    }
+
+    func saveSeenMoments(_ moments: Set<OnboardingMoment>) {
+        storedMoments = moments
+        savedMomentSets.append(moments)
+    }
+}
+
 /// Small deterministic source suitable for repeatable statistical tests.
 /// SplitMix64 has strong distribution properties without adding a dependency.
 struct SplitMix64RandomSource: PinballRandomSource {

@@ -3,6 +3,7 @@ import XCTest
 
 @MainActor
 final class TogetherChooserCoreTests: XCTestCase {
+    private let settlingDuration = TogetherTiming.defaultSettlingDuration
     private let first = TogetherTouchIdentity(rawValue: 101)
     private let second = TogetherTouchIdentity(rawValue: 202)
     private let third = TogetherTouchIdentity(rawValue: 303)
@@ -19,11 +20,11 @@ final class TogetherChooserCoreTests: XCTestCase {
         XCTAssertTrue(core.touchBegan(second))
         XCTAssertEqual(core.phase, .settling)
 
-        scheduler.advance(by: 1.499)
+        scheduler.advance(by: settlingDuration - 0.001)
         XCTAssertEqual(core.phase, .settling)
-        scheduler.advance(by: 0.001)
+        scheduler.advance(by: 0.002)
         XCTAssertEqual(core.phase, .countdown)
-        scheduler.advance(by: 1)
+        scheduler.advance(by: ChoiceAnticipationTimeline.chooser.duration)
 
         XCTAssertEqual(core.phase, .revealed(winner: second))
         XCTAssertEqual(core.snapshot.winner, second)
@@ -44,14 +45,14 @@ final class TogetherChooserCoreTests: XCTestCase {
         let core = TogetherChooserCore(scheduler: scheduler)
         core.touchBegan(first)
         core.touchBegan(second)
-        scheduler.advance(by: 1)
+        scheduler.advance(by: settlingDuration * 0.6)
 
         core.touchBegan(third)
-        scheduler.advance(by: 0.5)
+        scheduler.advance(by: settlingDuration * 0.4)
         XCTAssertEqual(core.phase, .settling, "The canceled first timer must not start countdown")
-        scheduler.advance(by: 0.999)
+        scheduler.advance(by: settlingDuration * 0.6 - 0.001)
         XCTAssertEqual(core.phase, .settling)
-        scheduler.advance(by: 0.001)
+        scheduler.advance(by: 0.002)
         XCTAssertEqual(core.phase, .countdown)
     }
 
@@ -61,12 +62,12 @@ final class TogetherChooserCoreTests: XCTestCase {
         core.touchBegan(first)
         core.touchBegan(second)
         core.touchBegan(third)
-        scheduler.advance(by: 1)
+        scheduler.advance(by: settlingDuration * 0.6)
 
         XCTAssertTrue(core.touchEnded(third))
-        scheduler.advance(by: 0.5)
+        scheduler.advance(by: settlingDuration * 0.4)
         XCTAssertEqual(core.phase, .settling)
-        scheduler.advance(by: 1)
+        scheduler.advance(by: settlingDuration * 0.6)
         XCTAssertEqual(core.phase, .countdown)
         XCTAssertEqual(core.snapshot.participantTouchIDs, [first, second])
     }
@@ -80,13 +81,13 @@ final class TogetherChooserCoreTests: XCTestCase {
         core.touchBegan(first)
         core.touchBegan(second)
         core.touchBegan(third)
-        scheduler.advance(by: 1.5)
+        scheduler.advance(by: settlingDuration)
         XCTAssertEqual(core.phase, .countdown)
 
         core.touchEnded(second)
         XCTAssertEqual(core.snapshot.participantTouchIDs, [first, third])
         XCTAssertEqual(core.phase, .countdown)
-        scheduler.advance(by: 1)
+        scheduler.advance(by: ChoiceAnticipationTimeline.chooser.duration)
         XCTAssertEqual(core.phase, .revealed(winner: third))
     }
 
@@ -95,7 +96,7 @@ final class TogetherChooserCoreTests: XCTestCase {
         let core = TogetherChooserCore(scheduler: scheduler)
         core.touchBegan(first)
         core.touchBegan(second)
-        scheduler.advance(by: 1.5)
+        scheduler.advance(by: settlingDuration)
         XCTAssertEqual(core.phase, .countdown)
 
         core.touchCancelled(second)
@@ -113,7 +114,9 @@ final class TogetherChooserCoreTests: XCTestCase {
         )
         core.touchBegan(first)
         core.touchBegan(second)
-        scheduler.advance(by: 2.5)
+        scheduler.advance(
+            by: settlingDuration + ChoiceAnticipationTimeline.chooser.duration
+        )
         XCTAssertEqual(core.phase, .revealed(winner: first))
 
         XCTAssertTrue(core.touchEnded(first))

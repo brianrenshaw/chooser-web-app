@@ -45,7 +45,16 @@ public struct PinballPathSegment: Equatable, Sendable {
     public var length: CGFloat { endDistance - startDistance }
 }
 
-/// Exact piecewise-linear result of a rectangle-billiards launch.
+/// Exact piecewise-linear analytic motion inside a rectangle.
+///
+/// ``PinballBilliards`` produces a single-direction trajectory whose internal
+/// vertices are all genuine specular wall events. A user-directed fair round is
+/// left entirely specular when its natural endpoint agrees with the uniform
+/// winner. Only when they differ may it compose an exact first leg with one
+/// separately solved billiards suffix; that sole non-specular wall impulse is
+/// tagged by
+/// ``PinballRoundResult/fairnessDeflectorVertexIndex``. Playback never adds any
+/// untagged splice or steering.
 public struct PinballTrajectory: Equatable, Sendable {
     public let bounds: CGRect
     public let launch: PinballLaunch

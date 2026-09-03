@@ -72,35 +72,81 @@ public struct NativeReplayVisualStyle {
     public let guideColor: UIColor
     public let trailColor: UIColor
     public let cursorColor: UIColor
+    public let ballEdgeColor: UIColor
+    public let impactColor: UIColor
+    public let ballMaterial: PinballMaterialKind?
     public let trailWidth: CGFloat
     public let trailGlowWidth: CGFloat
     public let cursorRadius: CGFloat
     public let showsGuide: Bool
+    public let settlesAtEndpoint: Bool
+    public let reducesMotion: Bool
 
     public init(
         backgroundColor: UIColor = .clear,
         guideColor: UIColor = UIColor.white.withAlphaComponent(0.12),
         trailColor: UIColor = .systemCyan,
         cursorColor: UIColor = .white,
+        ballEdgeColor: UIColor? = nil,
+        impactColor: UIColor? = nil,
+        ballMaterial: PinballMaterialKind? = nil,
         trailWidth: CGFloat = 4,
         trailGlowWidth: CGFloat = 10,
         cursorRadius: CGFloat = 7,
-        showsGuide: Bool = true
+        showsGuide: Bool = true,
+        settlesAtEndpoint: Bool = false,
+        reducesMotion: Bool = false
     ) {
         self.backgroundColor = backgroundColor
         self.guideColor = guideColor
         self.trailColor = trailColor
         self.cursorColor = cursorColor
+        self.ballEdgeColor = ballEdgeColor ?? trailColor
+        self.impactColor = impactColor ?? trailColor
+        self.ballMaterial = ballMaterial
         self.trailWidth = trailWidth
         self.trailGlowWidth = trailGlowWidth
         self.cursorRadius = cursorRadius
         self.showsGuide = showsGuide
+        self.settlesAtEndpoint = settlesAtEndpoint
+        self.reducesMotion = reducesMotion
     }
+}
+
+/// Shared physical dimensions for the SpriteKit ball and its collision
+/// playfield. Hosts should inset their analytic partition by `collisionInset`.
+public enum NativePinballReplayMetrics {
+    public static let ballDiameter: CGFloat = 30
+    public static let collisionInset: CGFloat = 18
+    public static let minimumTailLength: CGFloat = 12
+    public static let maximumTailLength: CGFloat = 40
+    public static let compressionDuration: TimeInterval = 0.025
+    public static let reboundDuration: TimeInterval = 0.060
+    public static let settleDuration: TimeInterval = 0.080
+    public static let endpointCompressionDuration: TimeInterval = 0.060
+    public static let endpointReboundDuration: TimeInterval = 0.090
+    public static let endpointRecoveryDuration: TimeInterval = 0.120
+    public static let endpointSettleDuration: TimeInterval =
+        endpointCompressionDuration + endpointReboundDuration + endpointRecoveryDuration
+    public static let maximumImpactTangentScale: CGFloat = 1.08
+    public static let auraRadiusScale: CGFloat = 0.96
+    public static let auraOffset: CGFloat = 1.5
+
+    /// Includes the widest authored ball edge, contact shadow, collision
+    /// compression, and rebound. This must remain within `collisionInset`.
+    public static let maximumRenderedRadius: CGFloat = {
+        let faceAndEdge = (ballDiameter / 2 + 1.25) * maximumImpactTangentScale
+        let aura = (ballDiameter / 2 * auraRadiusScale + auraOffset) * maximumImpactTangentScale
+        return max(faceAndEdge, aura)
+    }()
 }
 
 public struct NativeAnalyticReplayPlan {
     public let polyline: [CGPoint]
     public let duration: TimeInterval
+    /// Index in `polyline` of the one disclosed fairness deflector. It is not
+    /// rendered as an ordinary wall impact even though it occurs on an edge.
+    public let fairnessDeflectorVertexIndex: Int?
     public let regions: [NativeReplayRegion]
     public let winnerFlashes: [NativeReplayWinnerFlash]
     public let style: NativeReplayVisualStyle
@@ -108,31 +154,71 @@ public struct NativeAnalyticReplayPlan {
     public init(
         polyline: [CGPoint],
         duration: TimeInterval,
+        fairnessDeflectorVertexIndex: Int? = nil,
         regions: [NativeReplayRegion] = [],
         winnerFlashes: [NativeReplayWinnerFlash] = [],
         style: NativeReplayVisualStyle = NativeReplayVisualStyle()
     ) {
         self.polyline = polyline
         self.duration = max(0, duration)
+        self.fairnessDeflectorVertexIndex = fairnessDeflectorVertexIndex
         self.regions = regions
         self.winnerFlashes = winnerFlashes
         self.style = style
     }
 }
 
+/// A wall contact emitted on the exact SpriteKit frame that presents it.
+/// `vertexIndex` identifies the immutable analytic polyline vertex, allowing
+/// hosts to de-duplicate callbacks without making rendered timing authoritative
+/// for winner selection or endpoint geometry.
+public struct NativeAnalyticReplayImpact: Equatable, Sendable {
+    public let vertexIndex: Int
+    public let progress: Double
+    public let speedFraction: Double
+    /// The incoming velocity component perpendicular to the contacted wall,
+    /// normalized to `0...1`. A glancing contact is deliberately lighter than
+    /// a head-on hit even when both occur at the same travel speed.
+    public let wallNormalImpulseFraction: Double
+    public let isCorner: Bool
+    public let isFairnessDeflection: Bool
+
+    public init(
+        vertexIndex: Int,
+        progress: Double,
+        speedFraction: Double,
+        wallNormalImpulseFraction: Double = 1,
+        isCorner: Bool,
+        isFairnessDeflection: Bool = false
+    ) {
+        self.vertexIndex = vertexIndex
+        self.progress = progress
+        self.speedFraction = speedFraction
+        self.wallNormalImpulseFraction = min(1, max(0, wallNormalImpulseFraction))
+        self.isCorner = isCorner
+        self.isFairnessDeflection = isFairnessDeflection
+    }
+}
+
 public struct NativeAnalyticReplayCallbacks {
     public var onProgress: (_ progress: Double, _ point: CGPoint) -> Void
+    public var onImpact: (_ impact: NativeAnalyticReplayImpact) -> Void
+    public var onEndpointCompression: () -> Void
     public var onWinnerFlash: (_ flashID: String) -> Void
     public var onFinished: () -> Void
     public var onCancelled: () -> Void
 
     public init(
         onProgress: @escaping (_ progress: Double, _ point: CGPoint) -> Void = { _, _ in },
+        onImpact: @escaping (_ impact: NativeAnalyticReplayImpact) -> Void = { _ in },
+        onEndpointCompression: @escaping () -> Void = {},
         onWinnerFlash: @escaping (_ flashID: String) -> Void = { _ in },
         onFinished: @escaping () -> Void = {},
         onCancelled: @escaping () -> Void = {}
     ) {
         self.onProgress = onProgress
+        self.onImpact = onImpact
+        self.onEndpointCompression = onEndpointCompression
         self.onWinnerFlash = onWinnerFlash
         self.onFinished = onFinished
         self.onCancelled = onCancelled
@@ -147,28 +233,204 @@ public typealias NativeReplayPointMapper = (_ analyticPoint: CGPoint, _ sceneSiz
 /// The identity default is constant speed; callers can inject an analytic deceleration curve.
 public typealias NativeReplayProgressMapper = (_ normalizedTime: Double) -> Double
 
+/// Converts normalized elapsed time to speed relative to launch velocity.
+/// Pinball supplies this from the same analytic profile used for path progress,
+/// keeping the motion tail and collision presentation in exact agreement.
+public typealias NativeReplaySpeedMapper = (_ normalizedTime: Double) -> Double
+
+enum PolylineImpactEdge: Hashable, Sendable {
+    case left
+    case right
+    case top
+    case bottom
+}
+
+struct PolylineImpact: Equatable, Sendable {
+    let vertexIndex: Int
+    let progress: Double
+    let point: CGPoint
+    let edges: Set<PolylineImpactEdge>
+    let wallNormalImpulseFraction: Double
+}
+
+enum PolylineImpactAnalysis {
+    /// Internal vertices in an analytic billiards polyline are immutable wall
+    /// events. Reflection direction identifies the impacted edge without needing
+    /// mutable physics bodies or another source of randomness.
+    static func impacts(in points: [CGPoint], tolerance: CGFloat = 1e-7) -> [PolylineImpact] {
+        guard points.count >= 3 else { return [] }
+
+        var cumulativeLengths = [CGFloat](repeating: 0, count: points.count)
+        for index in 1..<points.count {
+            cumulativeLengths[index] = cumulativeLengths[index - 1] + distance(points[index - 1], points[index])
+        }
+        guard let totalLength = cumulativeLengths.last, totalLength > tolerance else { return [] }
+
+        return (1..<(points.count - 1)).compactMap { index in
+            let incoming = normalizedVector(from: points[index - 1], to: points[index], tolerance: tolerance)
+            let outgoing = normalizedVector(from: points[index], to: points[index + 1], tolerance: tolerance)
+            guard let incoming, let outgoing else { return nil }
+
+            var edges: Set<PolylineImpactEdge> = []
+            if incoming.dx * outgoing.dx < -tolerance {
+                edges.insert(incoming.dx > 0 ? .right : .left)
+            }
+            if incoming.dy * outgoing.dy < -tolerance {
+                edges.insert(incoming.dy > 0 ? .top : .bottom)
+            }
+            guard !edges.isEmpty else { return nil }
+
+            let normalMagnitudeSquared = edges.reduce(CGFloat.zero) { partial, edge in
+                switch edge {
+                case .left, .right:
+                    partial + incoming.dx * incoming.dx
+                case .top, .bottom:
+                    partial + incoming.dy * incoming.dy
+                }
+            }
+            let wallNormalImpulseFraction = Double(
+                min(1, max(0, sqrt(normalMagnitudeSquared)))
+            )
+
+            return PolylineImpact(
+                vertexIndex: index,
+                progress: Double(cumulativeLengths[index] / totalLength),
+                point: points[index],
+                edges: edges,
+                wallNormalImpulseFraction: wallNormalImpulseFraction
+            )
+        }
+    }
+
+    private static func normalizedVector(
+        from start: CGPoint,
+        to end: CGPoint,
+        tolerance: CGFloat
+    ) -> CGVector? {
+        let dx = end.x - start.x
+        let dy = end.y - start.y
+        let magnitude = hypot(dx, dy)
+        guard magnitude > tolerance else { return nil }
+        return CGVector(dx: dx / magnitude, dy: dy / magnitude)
+    }
+
+    private static func distance(_ first: CGPoint, _ second: CGPoint) -> CGFloat {
+        hypot(second.x - first.x, second.y - first.y)
+    }
+}
+
+struct RollingMaterialMarkSample: Equatable, Sendable {
+    let position: CGPoint
+    let satellitePosition: CGPoint
+    let alpha: CGFloat
+    let scale: CGFloat
+    let rotation: CGFloat
+}
+
+enum RollingMaterialMarkPresentation {
+    /// Projects a small authored material fleck across the visible face using
+    /// travelled distance, not elapsed time. The fleck disappears around the
+    /// back half of the ball and returns from the opposite edge, making slow
+    /// late-flight movement continue to read as rolling rather than sliding.
+    static func sample(
+        distance: CGFloat,
+        tangent: CGVector,
+        ballRadius: CGFloat
+    ) -> RollingMaterialMarkSample {
+        let radius = max(1, ballRadius)
+        let tangentMagnitude = hypot(tangent.dx, tangent.dy)
+        let direction = tangentMagnitude > 0
+            ? CGVector(dx: tangent.dx / tangentMagnitude, dy: tangent.dy / tangentMagnitude)
+            : CGVector(dx: 1, dy: 0)
+        let normal = CGVector(dx: -direction.dy, dy: direction.dx)
+        let phase = distance / radius
+        let acrossFace = sin(phase)
+        let frontDepth = max(0, cos(phase))
+        let travelOffset = radius * 0.54 * acrossFace
+        let lateralOffset = radius * 0.10 * frontDepth
+        let position = CGPoint(
+            x: direction.dx * travelOffset + normal.dx * lateralOffset,
+            y: direction.dy * travelOffset + normal.dy * lateralOffset
+        )
+        let satellitePosition = CGPoint(
+            x: position.x + normal.dx * radius * 0.13,
+            y: position.y + normal.dy * radius * 0.13
+        )
+
+        return RollingMaterialMarkSample(
+            position: position,
+            satellitePosition: satellitePosition,
+            alpha: pow(frontDepth, 0.62),
+            scale: 0.56 + 0.44 * frontDepth,
+            rotation: atan2(direction.dy, direction.dx) + phase * 0.16
+        )
+    }
+}
+
+enum PolylineImpactPresentation {
+    /// Analytic collisions happen at the ball-center inset. The impact mark,
+    /// however, belongs on the visible playfield edge so it reads as contact
+    /// with the wall rather than a spark floating inside the board.
+    static func visibleEdgePoint(
+        for edge: PolylineImpactEdge,
+        impactPoint: CGPoint,
+        sceneSize: CGSize
+    ) -> CGPoint {
+        switch edge {
+        case .left:
+            return CGPoint(x: 0, y: min(sceneSize.height, max(0, impactPoint.y)))
+        case .right:
+            return CGPoint(x: sceneSize.width, y: min(sceneSize.height, max(0, impactPoint.y)))
+        case .top:
+            return CGPoint(x: min(sceneSize.width, max(0, impactPoint.x)), y: sceneSize.height)
+        case .bottom:
+            return CGPoint(x: min(sceneSize.width, max(0, impactPoint.x)), y: 0)
+        }
+    }
+}
+
 /// Deterministically samples a supplied polyline by arc length. It intentionally has no collision,
 /// body, force, or simulation layer: playback is entirely analytic and time based.
 public final class NativeAnalyticPolylineReplayScene: SKScene {
     private let regionLayer = SKNode()
     private let guideLayer = SKNode()
     private let replayLayer = SKNode()
+    private let impactLayer = SKNode()
     private let flashLayer = SKNode()
 
     private let guideNode = SKShapeNode()
-    private let trailNode = SKShapeNode()
-    private let cursorNode = SKShapeNode()
+    private let tailNodes = (0..<1).map { _ in SKShapeNode() }
+    private let cursorNode = SKNode()
+    private let cursorAuraNode = SKShapeNode()
+    private let cursorPearlNode = SKShapeNode()
+    private let cursorShadeNode = SKShapeNode()
+    private let cursorRimNode = SKShapeNode()
+    private let cursorHighlightNode = SKShapeNode()
+    private let cursorHighlightDotNode = SKShapeNode()
 
     private var rawPlan: NativeAnalyticReplayPlan?
     private var pointMapper: NativeReplayPointMapper = { point, _ in point }
     private var progressMapper: NativeReplayProgressMapper = { $0 }
+    private var speedMapper: NativeReplaySpeedMapper?
     private var callbacks = NativeAnalyticReplayCallbacks()
     private var sampler = PolylineSampler(points: [])
+    private var impacts: [PolylineImpact] = []
+    private var nextImpactIndex = 0
+    private var impactPlaybackEnabled = false
+    private var impactColor = UIColor.systemCyan
+    private var rollingMarkBaseAlpha: CGFloat = 0
     private var resolvedFlashes: [ResolvedFlash] = []
 
     private var replayStartTime: TimeInterval?
     private var replayIsActive = false
+    private var endpointSettleStartTime: TimeInterval?
+    private var endpointSettleElapsed: TimeInterval = 0
+    private var endpointSettleIsActive = false
+    private var endpointCompressionWasDelivered = false
+    private var fairnessDeflectorWasDelivered = false
+    private var completionWasDelivered = false
     private var currentProgress = 0.0
+    private var currentTailSpeedFraction: CGFloat = 1
 
     public override init(size: CGSize) {
         super.init(size: size)
@@ -186,14 +448,25 @@ public final class NativeAnalyticPolylineReplayScene: SKScene {
         addChild(regionLayer)
         addChild(guideLayer)
         addChild(replayLayer)
+        addChild(impactLayer)
         addChild(flashLayer)
 
         guideNode.zPosition = 10
-        trailNode.zPosition = 20
+        for (index, tailNode) in tailNodes.enumerated() {
+            tailNode.zPosition = 20 + CGFloat(index)
+            replayLayer.addChild(tailNode)
+        }
+        impactLayer.zPosition = 28
         cursorNode.zPosition = 30
         guideLayer.addChild(guideNode)
-        replayLayer.addChild(trailNode)
         replayLayer.addChild(cursorNode)
+
+        cursorNode.addChild(cursorAuraNode)
+        cursorNode.addChild(cursorPearlNode)
+        cursorNode.addChild(cursorShadeNode)
+        cursorNode.addChild(cursorRimNode)
+        cursorNode.addChild(cursorHighlightNode)
+        cursorNode.addChild(cursorHighlightDotNode)
     }
 
     /// Starts a replay. Points are interpreted in analytic space and transformed by `pointMapper`.
@@ -201,28 +474,41 @@ public final class NativeAnalyticPolylineReplayScene: SKScene {
         _ plan: NativeAnalyticReplayPlan,
         pointMapper: @escaping NativeReplayPointMapper = { point, _ in point },
         progressMapper: @escaping NativeReplayProgressMapper = { $0 },
+        speedMapper: NativeReplaySpeedMapper? = nil,
         callbacks: NativeAnalyticReplayCallbacks = NativeAnalyticReplayCallbacks()
     ) {
         cancelReplay(notify: false)
         self.rawPlan = plan
         self.pointMapper = pointMapper
         self.progressMapper = progressMapper
+        self.speedMapper = speedMapper
         self.callbacks = callbacks
         currentProgress = 0
+        currentTailSpeedFraction = 1
+        nextImpactIndex = 0
+        impactPlaybackEnabled = plan.duration > 0
         replayStartTime = nil
+        endpointSettleStartTime = nil
+        endpointSettleElapsed = 0
+        endpointSettleIsActive = false
+        endpointCompressionWasDelivered = false
+        fairnessDeflectorWasDelivered = false
+        completionWasDelivered = false
         replayIsActive = !plan.polyline.isEmpty
         rebuildForCurrentSize()
 
         guard replayIsActive else {
-            callbacks.onFinished()
+            completeReplay()
             return
         }
 
         if plan.duration == 0 {
-            render(progress: 1)
-            finishReplay()
+            render(progress: 1, tailSpeedFraction: 0)
+            replayIsActive = false
+            completeReplay()
         } else {
-            render(progress: 0)
+            render(progress: 0, tailSpeedFraction: 1)
+            deliverInitialFairnessDeflectorIfNeeded()
         }
     }
 
@@ -231,6 +517,10 @@ public final class NativeAnalyticPolylineReplayScene: SKScene {
     }
 
     public override func update(_ currentTime: TimeInterval) {
+        if endpointSettleIsActive {
+            updateEndpointSettle(at: currentTime)
+            return
+        }
         guard replayIsActive, let plan = rawPlan else { return }
 
         if replayStartTime == nil {
@@ -238,10 +528,27 @@ public final class NativeAnalyticPolylineReplayScene: SKScene {
         }
         let elapsed = currentTime - (replayStartTime ?? currentTime)
         let normalizedTime = min(1, max(0, elapsed / max(plan.duration, .leastNonzeroMagnitude)))
-        render(progress: min(1, max(0, progressMapper(normalizedTime))))
+        let mappedProgress = min(1, max(0, progressMapper(normalizedTime)))
+        let speedFraction: CGFloat
+        if let speedMapper {
+            speedFraction = CGFloat(min(1, max(0, speedMapper(normalizedTime))))
+        } else {
+            let derivativeStep = min(1.0 / 120.0, max(normalizedTime, 0.000_001))
+            let previousTime = max(0, normalizedTime - derivativeStep)
+            let previousMappedProgress = min(1, max(0, progressMapper(previousTime)))
+            let currentSlope = (mappedProgress - previousMappedProgress) /
+                max(normalizedTime - previousTime, 0.000_001)
+            let initialStep = 1.0 / 120.0
+            let initialSlope = max(
+                0.000_001,
+                (progressMapper(initialStep) - progressMapper(0)) / initialStep
+            )
+            speedFraction = CGFloat(min(1, max(0, currentSlope / initialSlope)))
+        }
+        render(progress: mappedProgress, tailSpeedFraction: speedFraction)
 
         if normalizedTime >= 1 {
-            finishReplay()
+            finishMovement(at: currentTime)
         }
     }
 
@@ -249,8 +556,13 @@ public final class NativeAnalyticPolylineReplayScene: SKScene {
         super.didChangeSize(oldSize)
         guard rawPlan != nil else { return }
         rebuildForCurrentSize()
-        render(progress: currentProgress)
-        if !replayIsActive && currentProgress >= 1 {
+        render(
+            progress: currentProgress,
+            tailSpeedFraction: currentTailSpeedFraction
+        )
+        if endpointSettleIsActive {
+            applyEndpointSettle(elapsed: endpointSettleElapsed)
+        } else if completionWasDelivered && currentProgress >= 1 {
             drawWinnerFlashes(notify: false)
         }
     }
@@ -262,6 +574,13 @@ public final class NativeAnalyticPolylineReplayScene: SKScene {
 
         let mappedPoints = plan.polyline.map { pointMapper($0, size) }
         sampler = PolylineSampler(points: mappedPoints)
+        impacts = PolylineImpactAnalysis.impacts(in: mappedPoints)
+        injectTaggedFairnessDeflectorIfNeeded(
+            at: plan.fairnessDeflectorVertexIndex,
+            in: mappedPoints
+        )
+        nextImpactIndex = impacts.firstIndex(where: { $0.progress > currentProgress + 1e-9 }) ?? impacts.count
+        impactLayer.removeAllChildren()
 
         regionLayer.removeAllChildren()
         for (index, region) in plan.regions.enumerated() {
@@ -301,6 +620,58 @@ public final class NativeAnalyticPolylineReplayScene: SKScene {
         configureReplayNodes(style: plan.style)
     }
 
+    /// A nearly tangent first leg can have such a small normal component that
+    /// reflection-sign analysis intentionally ignores it as numerical noise.
+    /// Authored metadata is stronger evidence: the tagged wall vertex must
+    /// still disclose and emit its single Fair Bounce event.
+    private func injectTaggedFairnessDeflectorIfNeeded(
+        at optionalIndex: Int?,
+        in points: [CGPoint]
+    ) {
+        guard let index = optionalIndex,
+              index > 0,
+              index < points.count - 1,
+              !impacts.contains(where: { $0.vertexIndex == index }) else { return }
+
+        var cumulativeLengths = [CGFloat](repeating: 0, count: points.count)
+        for pointIndex in 1..<points.count {
+            cumulativeLengths[pointIndex] = cumulativeLengths[pointIndex - 1] + hypot(
+                points[pointIndex].x - points[pointIndex - 1].x,
+                points[pointIndex].y - points[pointIndex - 1].y
+            )
+        }
+        guard let totalLength = cumulativeLengths.last, totalLength > 0 else { return }
+
+        let edge = nearestEdge(to: points[index])
+        let incoming = CGVector(
+            dx: points[index].x - points[index - 1].x,
+            dy: points[index].y - points[index - 1].y
+        )
+        let incomingMagnitude = max(hypot(incoming.dx, incoming.dy), .leastNonzeroMagnitude)
+        let normalComponent: CGFloat
+        switch edge {
+        case .left, .right:
+            normalComponent = abs(incoming.dx) / incomingMagnitude
+        case .top, .bottom:
+            normalComponent = abs(incoming.dy) / incomingMagnitude
+        }
+        impacts.append(
+            PolylineImpact(
+                vertexIndex: index,
+                progress: Double(cumulativeLengths[index] / totalLength),
+                point: points[index],
+                edges: [edge],
+                wallNormalImpulseFraction: Double(min(1, max(0, normalComponent)))
+            )
+        )
+        impacts.sort { first, second in
+            if first.progress == second.progress {
+                return first.vertexIndex < second.vertexIndex
+            }
+            return first.progress < second.progress
+        }
+    }
+
     private func configureReplayNodes(style: NativeReplayVisualStyle) {
         let fullPath = path(points: sampler.points)
         guideNode.path = style.showsGuide ? fullPath : nil
@@ -309,46 +680,601 @@ public final class NativeAnalyticPolylineReplayScene: SKScene {
         guideNode.lineCap = .round
         guideNode.lineJoin = .round
 
-        trailNode.strokeColor = style.trailColor
-        trailNode.lineWidth = style.trailWidth
-        trailNode.glowWidth = style.trailGlowWidth
-        trailNode.lineCap = .round
-        trailNode.lineJoin = .round
+        let bandAlpha: [CGFloat] = [0.30]
+        let bandWidth: [CGFloat] = [0.92]
+        for index in tailNodes.indices {
+            let node = tailNodes[index]
+            node.strokeColor = style.trailColor.withAlphaComponent(bandAlpha[index])
+            node.lineWidth = max(1, style.trailWidth * bandWidth[index])
+            node.glowWidth = 0
+            node.lineCap = .round
+            node.lineJoin = .round
+        }
 
-        let radius = max(0, style.cursorRadius)
-        cursorNode.path = CGPath(ellipseIn: CGRect(x: -radius, y: -radius, width: radius * 2, height: radius * 2), transform: nil)
-        cursorNode.fillColor = style.cursorColor
-        cursorNode.strokeColor = style.trailColor
-        cursorNode.lineWidth = max(1, style.trailWidth * 0.45)
-        cursorNode.glowWidth = max(2, style.trailGlowWidth * 0.75)
-        cursorNode.isHidden = sampler.points.isEmpty || radius == 0
+        impactColor = style.impactColor
+        configurePearl(style: style)
     }
 
-    private func render(progress: Double) {
+    private func configurePearl(style: NativeReplayVisualStyle) {
+        cursorNode.removeAllActions()
+        cursorNode.xScale = 1
+        cursorNode.yScale = 1
+        guard style.cursorRadius > 0 else {
+            cursorNode.isHidden = true
+            return
+        }
+
+        let diameter = NativePinballReplayMetrics.ballDiameter
+        let radius = diameter / 2
+        let material = style.ballMaterial?.presentation ?? .fallback
+        cursorNode.isHidden = sampler.points.isEmpty
+
+        cursorAuraNode.path = circlePath(radius: radius * NativePinballReplayMetrics.auraRadiusScale)
+        cursorAuraNode.position = CGPoint(x: 0, y: -NativePinballReplayMetrics.auraOffset)
+        cursorAuraNode.fillColor = UIColor.black.withAlphaComponent(0.34)
+        cursorAuraNode.strokeColor = .clear
+        cursorAuraNode.lineWidth = 0
+        cursorAuraNode.glowWidth = 0
+
+        cursorPearlNode.path = circlePath(radius: radius)
+        cursorPearlNode.fillColor = style.cursorColor
+        cursorPearlNode.strokeColor = style.ballEdgeColor.withAlphaComponent(0.88)
+        cursorPearlNode.lineWidth = material.edgeWidth
+        cursorPearlNode.glowWidth = 0
+
+        cursorShadeNode.path = circlePath(radius: radius * material.shadeRadius)
+        cursorShadeNode.position = CGPoint(x: radius * 0.20, y: -radius * 0.22)
+        cursorShadeNode.fillColor = style.ballEdgeColor.withAlphaComponent(material.shadeAlpha)
+        cursorShadeNode.strokeColor = .clear
+
+        cursorRimNode.path = circlePath(radius: radius)
+        cursorRimNode.fillColor = .clear
+        cursorRimNode.strokeColor = style.ballEdgeColor.withAlphaComponent(material.rimAlpha)
+        cursorRimNode.lineWidth = material.rimWidth
+        cursorRimNode.glowWidth = 0
+
+        cursorHighlightNode.path = material.markRadius > 0
+            ? circlePath(radius: radius * material.markRadius)
+            : nil
+        cursorHighlightNode.position = CGPoint(x: -radius * 0.28, y: radius * 0.27)
+        cursorHighlightNode.fillColor = style.ballEdgeColor.withAlphaComponent(material.markAlpha)
+        cursorHighlightNode.strokeColor = .clear
+        cursorHighlightNode.glowWidth = 0
+
+        let rollingMarkRadius = max(radius * max(material.markRadius, 0.09) * 0.54, 1.2)
+        cursorHighlightDotNode.path = circlePath(radius: rollingMarkRadius)
+        cursorHighlightDotNode.position = .zero
+        cursorHighlightDotNode.fillColor = style.ballEdgeColor.withAlphaComponent(0.74)
+        cursorHighlightDotNode.strokeColor = .clear
+        rollingMarkBaseAlpha = max(0.28, material.markAlpha * 2.4)
+    }
+
+    private func render(progress: Double, tailSpeedFraction: CGFloat) {
         guard !sampler.points.isEmpty else { return }
+        let previousProgress = currentProgress
         currentProgress = min(1, max(0, progress))
-        let prefix = sampler.prefix(at: currentProgress)
-        trailNode.path = path(points: prefix)
+        currentTailSpeedFraction = min(1, max(0, tailSpeedFraction))
+        let tailLength = NativePinballReplayMetrics.minimumTailLength +
+            (NativePinballReplayMetrics.maximumTailLength -
+                NativePinballReplayMetrics.minimumTailLength) * currentTailSpeedFraction
+        let bands = sampler.tailBandsSinceLastVertex(
+            at: currentProgress,
+            maximumLength: tailLength,
+            bandCount: tailNodes.count
+        )
+        for index in tailNodes.indices {
+            tailNodes[index].path = index < bands.count ? path(points: bands[index]) : nil
+        }
         let point = sampler.point(at: currentProgress)
         cursorNode.position = point
+        updateRollingMaterialMark()
+        triggerImpacts(from: previousProgress, through: currentProgress)
         callbacks.onProgress(currentProgress, point)
     }
 
-    private func finishReplay() {
+    private func updateRollingMaterialMark() {
+        let sample = RollingMaterialMarkPresentation.sample(
+            distance: sampler.distance(at: currentProgress),
+            tangent: sampler.tangent(at: currentProgress),
+            ballRadius: NativePinballReplayMetrics.ballDiameter / 2
+        )
+        cursorHighlightNode.position = sample.position
+        cursorHighlightNode.alpha = sample.alpha
+        cursorHighlightNode.setScale(sample.scale)
+        cursorHighlightNode.zRotation = sample.rotation
+        cursorHighlightDotNode.position = sample.satellitePosition
+        cursorHighlightDotNode.alpha = sample.alpha * rollingMarkBaseAlpha
+        cursorHighlightDotNode.setScale(sample.scale)
+    }
+
+    private func triggerImpacts(from previousProgress: Double, through progress: Double) {
+        guard impactPlaybackEnabled, progress > previousProgress else { return }
+        while nextImpactIndex < impacts.count {
+            let impact = impacts[nextImpactIndex]
+            guard impact.progress <= progress + 1e-9 else { break }
+            nextImpactIndex += 1
+            guard impact.progress > previousProgress + 1e-9 else { continue }
+            showImpact(impact)
+        }
+    }
+
+    private func showImpact(_ impact: PolylineImpact) {
+        let isFairnessDeflection = rawPlan?.fairnessDeflectorVertexIndex == impact.vertexIndex
+        if isFairnessDeflection {
+            showFairnessDeflector(impact)
+        } else {
+            showOrdinaryImpactMark(impact)
+        }
+
+        squashPearl(
+            for: impact.edges,
+            wallNormalImpulseFraction: CGFloat(impact.wallNormalImpulseFraction)
+        )
+        callbacks.onImpact(
+            NativeAnalyticReplayImpact(
+                vertexIndex: impact.vertexIndex,
+                progress: impact.progress,
+                speedFraction: Double(currentTailSpeedFraction),
+                wallNormalImpulseFraction: impact.wallNormalImpulseFraction,
+                isCorner: impact.edges.count > 1,
+                isFairnessDeflection: isFairnessDeflection
+            )
+        )
+    }
+
+    private func showOrdinaryImpactMark(_ impact: PolylineImpact) {
+        for edge in impact.edges {
+            let tangent: CGVector
+            switch edge {
+            case .left:
+                tangent = CGVector(dx: 0, dy: 1)
+            case .right:
+                tangent = CGVector(dx: 0, dy: 1)
+            case .top:
+                tangent = CGVector(dx: 1, dy: 0)
+            case .bottom:
+                tangent = CGVector(dx: 1, dy: 0)
+            }
+
+            let edgePath = CGMutablePath()
+            edgePath.move(
+                to: CGPoint(
+                    x: -tangent.dx * 18,
+                    y: -tangent.dy * 18
+                )
+            )
+            edgePath.addLine(
+                to: CGPoint(
+                    x: tangent.dx * 18,
+                    y: tangent.dy * 18
+                )
+            )
+            let edgeFlash = SKShapeNode(path: edgePath)
+            edgeFlash.name = "impact-edge"
+            edgeFlash.position = PolylineImpactPresentation.visibleEdgePoint(
+                for: edge,
+                impactPoint: impact.point,
+                sceneSize: size
+            )
+            let impulse = CGFloat(impact.wallNormalImpulseFraction)
+            edgeFlash.strokeColor = impactColor.withAlphaComponent(0.38 + 0.32 * impulse)
+            edgeFlash.lineWidth = 1.5 + 0.9 * impulse
+            edgeFlash.lineCap = .round
+            edgeFlash.glowWidth = 0
+            edgeFlash.zPosition = 1
+            impactLayer.addChild(edgeFlash)
+            edgeFlash.run(
+                .sequence([
+                    .group([
+                        .fadeOut(withDuration: 0.14),
+                        .scale(to: 1.12, duration: 0.14)
+                    ]),
+                    .removeFromParent()
+                ])
+            )
+        }
+    }
+
+    /// Makes the one non-specular fairness intervention belong to the wall.
+    /// A short piece of the contacted edge curls inward, flexes under the ball,
+    /// and springs back in the current theme colors. There is deliberately no
+    /// label or free-floating effect: when no deflector metadata is present,
+    /// this wall transformation is never rendered.
+    private func showFairnessDeflector(_ impact: PolylineImpact) {
+        guard !fairnessDeflectorWasDelivered, let style = rawPlan?.style else { return }
+        fairnessDeflectorWasDelivered = true
+
+        for edge in orderedEdges(impact.edges) {
+            let position = PolylineImpactPresentation.visibleEdgePoint(
+                for: edge,
+                impactPoint: impact.point,
+                sceneSize: size
+            )
+            let wall = fairnessWallTransformation(
+                for: edge,
+                position: position,
+                style: style
+            )
+            impactLayer.addChild(wall)
+            runFairnessWallLifetime(
+                on: wall,
+                edge: edge,
+                reducesMotion: style.reducesMotion
+            )
+        }
+    }
+
+    private func deliverInitialFairnessDeflectorIfNeeded() {
+        guard rawPlan?.fairnessDeflectorVertexIndex == 0,
+              !fairnessDeflectorWasDelivered,
+              let point = sampler.points.first else { return }
+        let edge = nearestEdge(to: point)
+        showImpact(
+            PolylineImpact(
+                vertexIndex: 0,
+                progress: 0,
+                point: point,
+                edges: [edge],
+                wallNormalImpulseFraction: 1
+            )
+        )
+    }
+
+    private func fairnessWallTransformation(
+        for edge: PolylineImpactEdge,
+        position: CGPoint,
+        style: NativeReplayVisualStyle
+    ) -> SKNode {
+        let wall = SKNode()
+        wall.name = "fairness-wall-transform"
+        wall.position = position
+        wall.zPosition = 3
+
+        let wallPath = fairnessWallPath(for: edge)
+
+        // The broad edge-colored layer reads as the original wall bending,
+        // rather than a new object or a floating spark appearing beside it.
+        let depth = SKShapeNode(path: wallPath)
+        depth.name = "fairness-wall-depth"
+        depth.strokeColor = style.ballEdgeColor.withAlphaComponent(0.38)
+        depth.lineWidth = 12
+        depth.lineCap = .round
+        depth.lineJoin = .round
+        depth.zPosition = 0
+        wall.addChild(depth)
+
+        let face = SKShapeNode(path: wallPath)
+        face.name = "fairness-wall-face"
+        face.strokeColor = style.impactColor.withAlphaComponent(0.98)
+        face.lineWidth = 7
+        face.lineCap = .round
+        face.lineJoin = .round
+        face.zPosition = 1
+        wall.addChild(face)
+
+        // A narrow second theme color gives the elastic wall a playful,
+        // game-piece finish without using white shine or neon bloom.
+        let inlay = SKShapeNode(path: wallPath)
+        inlay.name = "fairness-wall-inlay"
+        inlay.strokeColor = style.trailColor.withAlphaComponent(0.72)
+        inlay.lineWidth = 2.2
+        inlay.lineCap = .round
+        inlay.lineJoin = .round
+        inlay.zPosition = 2
+        wall.addChild(inlay)
+
+        return wall
+    }
+
+    private func fairnessWallPath(for edge: PolylineImpactEdge) -> CGPath {
+        let path = CGMutablePath()
+        let halfLength: CGFloat = 22
+        let curl: CGFloat = 9
+        switch edge {
+        case .left:
+            path.move(to: CGPoint(x: 0, y: -halfLength))
+            path.addQuadCurve(
+                to: CGPoint(x: 0, y: halfLength),
+                control: CGPoint(x: curl, y: 0)
+            )
+        case .right:
+            path.move(to: CGPoint(x: 0, y: -halfLength))
+            path.addQuadCurve(
+                to: CGPoint(x: 0, y: halfLength),
+                control: CGPoint(x: -curl, y: 0)
+            )
+        case .top:
+            path.move(to: CGPoint(x: -halfLength, y: 0))
+            path.addQuadCurve(
+                to: CGPoint(x: halfLength, y: 0),
+                control: CGPoint(x: 0, y: -curl)
+            )
+        case .bottom:
+            path.move(to: CGPoint(x: -halfLength, y: 0))
+            path.addQuadCurve(
+                to: CGPoint(x: halfLength, y: 0),
+                control: CGPoint(x: 0, y: curl)
+            )
+        }
+        return path
+    }
+
+    private func runFairnessWallLifetime(
+        on wall: SKNode,
+        edge: PolylineImpactEdge,
+        reducesMotion: Bool
+    ) {
+        wall.alpha = 1
+        if reducesMotion {
+            setFairnessWallScale(on: wall, edge: edge, normal: 1, tangent: 1)
+            wall.run(.sequence([
+                .wait(forDuration: 0.46),
+                .fadeOut(withDuration: 0.14),
+                .removeFromParent()
+            ]))
+            return
+        }
+
+        // The first rendered frame is already a curved, compressed wall at the
+        // exact turn. It flattens for one quick contact frame, then overshoots
+        // inward and settles, making the redirected motion feel spring-loaded.
+        setFairnessWallScale(on: wall, edge: edge, normal: 0.68, tangent: 1.07)
+        let compress = fairnessWallScaleAction(
+            edge: edge,
+            normal: 0.42,
+            tangent: 1.11,
+            duration: 0.025
+        )
+        compress.timingMode = .easeOut
+        let spring = fairnessWallScaleAction(
+            edge: edge,
+            normal: 1.28,
+            tangent: 0.96,
+            duration: 0.075
+        )
+        spring.timingMode = .easeOut
+        let settle = fairnessWallScaleAction(
+            edge: edge,
+            normal: 1,
+            tangent: 1,
+            duration: 0.11
+        )
+        settle.timingMode = .easeInEaseOut
+        wall.run(.sequence([
+            compress,
+            spring,
+            settle,
+            .wait(forDuration: 0.22),
+            .fadeOut(withDuration: 0.16),
+            .removeFromParent()
+        ]))
+    }
+
+    private func setFairnessWallScale(
+        on wall: SKNode,
+        edge: PolylineImpactEdge,
+        normal: CGFloat,
+        tangent: CGFloat
+    ) {
+        switch edge {
+        case .left, .right:
+            wall.xScale = normal
+            wall.yScale = tangent
+        case .top, .bottom:
+            wall.xScale = tangent
+            wall.yScale = normal
+        }
+    }
+
+    private func fairnessWallScaleAction(
+        edge: PolylineImpactEdge,
+        normal: CGFloat,
+        tangent: CGFloat,
+        duration: TimeInterval
+    ) -> SKAction {
+        switch edge {
+        case .left, .right:
+            return .group([
+                .scaleX(to: normal, duration: duration),
+                .scaleY(to: tangent, duration: duration)
+            ])
+        case .top, .bottom:
+            return .group([
+                .scaleX(to: tangent, duration: duration),
+                .scaleY(to: normal, duration: duration)
+            ])
+        }
+    }
+
+    private func orderedEdges(_ edges: Set<PolylineImpactEdge>) -> [PolylineImpactEdge] {
+        [.left, .right, .top, .bottom].filter(edges.contains)
+    }
+
+    private func nearestEdge(to point: CGPoint) -> PolylineImpactEdge {
+        let distances: [(PolylineImpactEdge, CGFloat)] = [
+            (.left, point.x),
+            (.right, size.width - point.x),
+            (.bottom, point.y),
+            (.top, size.height - point.y)
+        ]
+        return distances.min(by: { $0.1 < $1.1 })?.0 ?? .left
+    }
+
+    private func squashPearl(
+        for edges: Set<PolylineImpactEdge>,
+        wallNormalImpulseFraction: CGFloat
+    ) {
+        let hitsVertical = edges.contains(.left) || edges.contains(.right)
+        let hitsHorizontal = edges.contains(.top) || edges.contains(.bottom)
+        let impulse = min(1, max(0, wallNormalImpulseFraction))
+        let normalSquash = 0.88 - 0.20 * impulse
+        let tangentStretch = 1.01 + 0.07 * impulse
+        let squashX: CGFloat
+        let squashY: CGFloat
+        if hitsVertical && hitsHorizontal {
+            let cornerSquash = 0.90 - 0.10 * impulse
+            squashX = cornerSquash
+            squashY = cornerSquash
+        } else if hitsVertical {
+            squashX = normalSquash
+            squashY = tangentStretch
+        } else {
+            squashX = tangentStretch
+            squashY = normalSquash
+        }
+
+        cursorNode.removeAction(forKey: "wall-impact")
+        cursorNode.xScale = 1
+        cursorNode.yScale = 1
+        let compress = SKAction.group([
+            .scaleX(to: squashX, duration: NativePinballReplayMetrics.compressionDuration),
+            .scaleY(to: squashY, duration: NativePinballReplayMetrics.compressionDuration)
+        ])
+        compress.timingMode = .easeOut
+        let rebound = SKAction.group([
+            .scaleX(to: 1.04, duration: NativePinballReplayMetrics.reboundDuration),
+            .scaleY(to: 1.04, duration: NativePinballReplayMetrics.reboundDuration)
+        ])
+        rebound.timingMode = .easeOut
+        let settle = SKAction.group([
+            .scaleX(to: 1, duration: NativePinballReplayMetrics.settleDuration),
+            .scaleY(to: 1, duration: NativePinballReplayMetrics.settleDuration)
+        ])
+        settle.timingMode = .easeInEaseOut
+        cursorNode.run(.sequence([compress, rebound, settle]), withKey: "wall-impact")
+    }
+
+    private func circlePath(radius: CGFloat) -> CGPath {
+        CGPath(
+            ellipseIn: CGRect(x: -radius, y: -radius, width: radius * 2, height: radius * 2),
+            transform: nil
+        )
+    }
+
+    private func finishMovement(at currentTime: TimeInterval) {
         guard replayIsActive else { return }
         replayIsActive = false
         replayStartTime = nil
         if currentProgress < 1 {
-            render(progress: 1)
+            render(progress: 1, tailSpeedFraction: 0)
         }
+        impactPlaybackEnabled = false
+        if rawPlan?.style.settlesAtEndpoint == true {
+            beginEndpointSettle(at: currentTime)
+        } else {
+            completeReplay()
+        }
+    }
+
+    private func beginEndpointSettle(at currentTime: TimeInterval) {
+        guard !endpointSettleIsActive, !completionWasDelivered else { return }
+        cursorNode.removeAction(forKey: "wall-impact")
+        cursorNode.xScale = 1
+        cursorNode.yScale = 1
+        endpointSettleStartTime = currentTime
+        endpointSettleElapsed = 0
+        endpointCompressionWasDelivered = false
+        endpointSettleIsActive = true
+        applyEndpointSettle(elapsed: 0)
+    }
+
+    private func updateEndpointSettle(at currentTime: TimeInterval) {
+        guard endpointSettleIsActive else { return }
+        if endpointSettleStartTime == nil {
+            endpointSettleStartTime = currentTime
+        }
+        let elapsed = min(
+            NativePinballReplayMetrics.endpointSettleDuration,
+            max(0, currentTime - (endpointSettleStartTime ?? currentTime))
+        )
+
+        if !endpointCompressionWasDelivered,
+           elapsed >= NativePinballReplayMetrics.endpointCompressionDuration {
+            // Hold the authored maximum compression for this rendered frame so
+            // the tactile cue cannot arrive after the rebound has already begun.
+            endpointSettleElapsed = NativePinballReplayMetrics.endpointCompressionDuration
+            applyEndpointSettle(elapsed: endpointSettleElapsed)
+            endpointCompressionWasDelivered = true
+            callbacks.onEndpointCompression()
+            return
+        }
+
+        endpointSettleElapsed = elapsed
+        applyEndpointSettle(elapsed: endpointSettleElapsed)
+
+        guard endpointSettleElapsed >= NativePinballReplayMetrics.endpointSettleDuration else {
+            return
+        }
+        endpointSettleIsActive = false
+        endpointSettleStartTime = nil
+        cursorNode.xScale = 1
+        cursorNode.yScale = 1
+        completeReplay()
+    }
+
+    private func applyEndpointSettle(elapsed: TimeInterval) {
+        let compression = NativePinballReplayMetrics.endpointCompressionDuration
+        let rebound = NativePinballReplayMetrics.endpointReboundDuration
+        let recovery = NativePinballReplayMetrics.endpointRecoveryDuration
+        let xScale: CGFloat
+        let yScale: CGFloat
+
+        if elapsed <= compression {
+            let progress = easedOutFraction(elapsed / max(compression, .leastNonzeroMagnitude))
+            xScale = interpolate(from: 1, to: 1.08, progress: progress)
+            yScale = interpolate(from: 1, to: 0.84, progress: progress)
+        } else if elapsed <= compression + rebound {
+            let progress = easedOutFraction(
+                (elapsed - compression) / max(rebound, .leastNonzeroMagnitude)
+            )
+            xScale = interpolate(from: 1.08, to: 0.98, progress: progress)
+            yScale = interpolate(from: 0.84, to: 1.04, progress: progress)
+        } else {
+            let progress = smoothFraction(
+                (elapsed - compression - rebound) / max(recovery, .leastNonzeroMagnitude)
+            )
+            xScale = interpolate(from: 0.98, to: 1, progress: progress)
+            yScale = interpolate(from: 1.04, to: 1, progress: progress)
+        }
+        cursorNode.xScale = xScale
+        cursorNode.yScale = yScale
+    }
+
+    private func completeReplay() {
+        guard !completionWasDelivered else { return }
+        completionWasDelivered = true
         drawWinnerFlashes(notify: true)
         callbacks.onFinished()
     }
 
+    private func interpolate(from start: CGFloat, to end: CGFloat, progress: Double) -> CGFloat {
+        start + (end - start) * CGFloat(min(1, max(0, progress)))
+    }
+
+    private func easedOutFraction(_ rawProgress: Double) -> Double {
+        let progress = min(1, max(0, rawProgress))
+        return 1 - pow(1 - progress, 2)
+    }
+
+    private func smoothFraction(_ rawProgress: Double) -> Double {
+        let progress = min(1, max(0, rawProgress))
+        return progress * progress * (3 - 2 * progress)
+    }
+
     private func cancelReplay(notify: Bool) {
-        let wasActive = replayIsActive
+        let wasActive = replayIsActive || endpointSettleIsActive
         replayIsActive = false
         replayStartTime = nil
+        endpointSettleStartTime = nil
+        endpointSettleElapsed = 0
+        endpointSettleIsActive = false
+        endpointCompressionWasDelivered = false
+        fairnessDeflectorWasDelivered = false
+        impactPlaybackEnabled = false
+        impactLayer.removeAllChildren()
+        cursorNode.removeAction(forKey: "wall-impact")
+        cursorNode.xScale = 1
+        cursorNode.yScale = 1
         flashLayer.removeAllChildren()
         if notify && wasActive {
             callbacks.onCancelled()
@@ -361,10 +1287,10 @@ public final class NativeAnalyticPolylineReplayScene: SKScene {
             let node = SKShapeNode(circleOfRadius: flash.radius)
             node.name = "winner-flash:\(flash.id)"
             node.position = flash.point
-            node.fillColor = flash.color.withAlphaComponent(0.18)
-            node.strokeColor = flash.color
-            node.lineWidth = 3
-            node.glowWidth = 16
+            node.fillColor = flash.color.withAlphaComponent(0.08)
+            node.strokeColor = flash.color.withAlphaComponent(0.72)
+            node.lineWidth = 2.2
+            node.glowWidth = 0
             node.alpha = 0
             node.zPosition = 100
             flashLayer.addChild(node)
@@ -430,10 +1356,10 @@ public final class NativeAnalyticPolylineReplayScene: SKScene {
     }
 }
 
-private struct PolylineSampler {
+struct PolylineSampler {
     let points: [CGPoint]
     private let cumulativeLengths: [CGFloat]
-    private let totalLength: CGFloat
+    let totalLength: CGFloat
 
     init(points: [CGPoint]) {
         self.points = points
@@ -459,6 +1385,124 @@ private struct PolylineSampler {
         guard points.count > 1, totalLength > 0 else { return first }
 
         let target = CGFloat(min(1, max(0, progress))) * totalLength
+        return point(atDistance: target)
+    }
+
+    func distance(at progress: Double) -> CGFloat {
+        CGFloat(min(1, max(0, progress))) * totalLength
+    }
+
+    func tangent(at progress: Double) -> CGVector {
+        guard points.count > 1, totalLength > 0 else {
+            return CGVector(dx: 1, dy: 0)
+        }
+        let target = distance(at: progress)
+        let segment = segmentIndex(for: target)
+        let start = points[segment - 1]
+        let end = points[segment]
+        let dx = end.x - start.x
+        let dy = end.y - start.y
+        let magnitude = hypot(dx, dy)
+        guard magnitude > 0 else { return CGVector(dx: 1, dy: 0) }
+        return CGVector(dx: dx / magnitude, dy: dy / magnitude)
+    }
+
+    /// Returns equal-distance pieces of a bounded route ending at `progress`.
+    /// Pieces are ordered oldest to newest so callers can style them with
+    /// progressively stronger opacity without retaining the travelled route.
+    func tailBands(
+        at progress: Double,
+        maximumLength: CGFloat,
+        bandCount: Int
+    ) -> [[CGPoint]] {
+        guard bandCount > 0,
+              points.count > 1,
+              totalLength > 0,
+              maximumLength > 0 else {
+            return []
+        }
+
+        let endDistance = CGFloat(min(1, max(0, progress))) * totalLength
+        guard endDistance > 0 else { return [] }
+        let startDistance = max(0, endDistance - maximumLength)
+        let visibleLength = endDistance - startDistance
+        guard visibleLength > 0 else { return [] }
+
+        return (0..<bandCount).map { index in
+            let lowerFraction = CGFloat(index) / CGFloat(bandCount)
+            let upperFraction = CGFloat(index + 1) / CGFloat(bandCount)
+            return points(
+                fromDistance: startDistance + visibleLength * lowerFraction,
+                toDistance: startDistance + visibleLength * upperFraction
+            )
+        }
+    }
+
+    /// A speed-length tail confined to the current physical leg. The tail
+    /// disappears behind a wall at impact instead of drawing an angular V across
+    /// two reflected segments.
+    func tailBandsSinceLastVertex(
+        at progress: Double,
+        maximumLength: CGFloat,
+        bandCount: Int
+    ) -> [[CGPoint]] {
+        guard bandCount > 0,
+              points.count > 1,
+              totalLength > 0,
+              maximumLength > 0 else {
+            return []
+        }
+
+        let endDistance = CGFloat(min(1, max(0, progress))) * totalLength
+        guard endDistance > 0 else { return [] }
+        let activeSegment = segmentIndex(for: endDistance)
+        let segmentStartDistance = cumulativeLengths[max(0, activeSegment - 1)]
+        let startDistance = max(
+            segmentStartDistance,
+            endDistance - maximumLength
+        )
+        let visibleLength = endDistance - startDistance
+        guard visibleLength > 0 else { return [] }
+
+        return (0..<bandCount).map { index in
+            let lowerFraction = CGFloat(index) / CGFloat(bandCount)
+            let upperFraction = CGFloat(index + 1) / CGFloat(bandCount)
+            return points(
+                fromDistance: startDistance + visibleLength * lowerFraction,
+                toDistance: startDistance + visibleLength * upperFraction
+            )
+        }
+    }
+
+    private func points(fromDistance rawStart: CGFloat, toDistance rawEnd: CGFloat) -> [CGPoint] {
+        let startDistance = min(totalLength, max(0, rawStart))
+        let endDistance = min(totalLength, max(startDistance, rawEnd))
+        let startPoint = point(atDistance: startDistance)
+        guard endDistance > startDistance else { return [startPoint] }
+
+        var result = [startPoint]
+        if cumulativeLengths.count > 2 {
+            for index in 1..<(cumulativeLengths.count - 1) {
+                let vertexDistance = cumulativeLengths[index]
+                guard vertexDistance > startDistance, vertexDistance < endDistance else { continue }
+                if result.last != points[index] {
+                    result.append(points[index])
+                }
+            }
+        }
+
+        let endPoint = point(atDistance: endDistance)
+        if result.last != endPoint {
+            result.append(endPoint)
+        }
+        return result
+    }
+
+    private func point(atDistance rawTarget: CGFloat) -> CGPoint {
+        guard let first = points.first else { return .zero }
+        guard points.count > 1, totalLength > 0 else { return first }
+
+        let target = min(totalLength, max(0, rawTarget))
         let segment = segmentIndex(for: target)
         let startLength = cumulativeLengths[segment - 1]
         let endLength = cumulativeLengths[segment]
@@ -471,20 +1515,6 @@ private struct PolylineSampler {
             x: start.x + (end.x - start.x) * localProgress,
             y: start.y + (end.y - start.y) * localProgress
         )
-    }
-
-    func prefix(at progress: Double) -> [CGPoint] {
-        guard !points.isEmpty else { return [] }
-        guard points.count > 1, totalLength > 0 else { return [points[0]] }
-
-        let target = CGFloat(min(1, max(0, progress))) * totalLength
-        let segment = segmentIndex(for: target)
-        var result = Array(points.prefix(segment))
-        let interpolated = point(at: progress)
-        if result.last != interpolated {
-            result.append(interpolated)
-        }
-        return result
     }
 
     private func segmentIndex(for target: CGFloat) -> Int {

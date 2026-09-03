@@ -22,9 +22,117 @@ public struct PinballRadialRegion: Equatable, Sendable {
     public let clockwiseIndex: Int
     public let startPhase: CGFloat
     public let endPhase: CGFloat
+    /// Exact equal-area phase halfway between this region's boundaries.
+    public let centerPhase: CGFloat
     public let startBoundaryPoint: CGPoint
     public let endBoundaryPoint: CGPoint
+    /// Perimeter point reached by the region's center ray.
+    public let centerBoundaryPoint: CGPoint
     public let area: CGFloat
+}
+
+/// One settled, geometry-safe position for a numbered Pinball seat token.
+public struct PinballSeatTokenPlacement: Equatable, Sendable {
+    public let seatID: Int
+    public let center: CGPoint
+
+    public init(seatID: Int, center: CGPoint) {
+        self.seatID = seatID
+        self.center = center
+    }
+}
+
+/// A single token diameter and one safe center per equal-area seat region.
+///
+/// Pinball uses one uniform diameter so a seat never looks more important merely
+/// because its wedge has a more favorable aspect ratio. The diameter describes
+/// the authored face; `maximumRenderedScale` records the largest scale the face
+/// can reach when its seat wins.
+public struct PinballSeatTokenLayout: Equatable, Sendable {
+    public let tokenDiameter: CGFloat
+    public let maximumRenderedScale: CGFloat
+    public let placements: [PinballSeatTokenPlacement]
+
+    public init(
+        tokenDiameter: CGFloat,
+        maximumRenderedScale: CGFloat,
+        placements: [PinballSeatTokenPlacement]
+    ) {
+        self.tokenDiameter = tokenDiameter
+        self.maximumRenderedScale = maximumRenderedScale
+        self.placements = placements
+    }
+
+    public func center(forSeatID seatID: Int) -> CGPoint? {
+        placements.first(where: { $0.seatID == seatID })?.center
+    }
+}
+
+/// Production clearances shared by the renderer and geometry tests.
+///
+/// The partition itself is already inset far enough to contain the authored
+/// contact shadow. These values keep the *scaled token face* another six points
+/// clear of both that inset edge and the two divider centerlines.
+public struct PinballSeatTokenLayoutPolicy: Equatable, Sendable {
+    public let preferredRadialFraction: CGFloat
+    public let edgeClearance: CGFloat
+    public let dividerClearance: CGFloat
+    public let maximumRenderedScale: CGFloat
+
+    public init(
+        preferredRadialFraction: CGFloat,
+        edgeClearance: CGFloat,
+        dividerClearance: CGFloat,
+        maximumRenderedScale: CGFloat
+    ) {
+        self.preferredRadialFraction = preferredRadialFraction
+        self.edgeClearance = edgeClearance
+        self.dividerClearance = dividerClearance
+        self.maximumRenderedScale = maximumRenderedScale
+    }
+
+    public static let production = PinballSeatTokenLayoutPolicy(
+        preferredRadialFraction: 0.82,
+        edgeClearance: 6,
+        dividerClearance: 6,
+        maximumRenderedScale: 1.06
+    )
+}
+
+/// The authored Pinball chit size before equal-area geometry applies a denser
+/// uniform fit. Kept alongside the layout policy so production and tests use
+/// exactly the same sizing path in every orientation.
+public enum PinballSeatTokenSizing {
+    public static func preferredDiameter(
+        in playfieldSize: CGSize,
+        seatCount: Int
+    ) -> CGFloat {
+        guard playfieldSize.width > 0, playfieldSize.height > 0 else { return 0 }
+        let shortEdge = min(playfieldSize.width, playfieldSize.height)
+        let isLandscape = playfieldSize.width > playfieldSize.height
+        let crowdingReduction = CGFloat(max(0, seatCount - 6)) * 1.5
+        let cap: CGFloat = isLandscape ? 76 : 88
+        let floor: CGFloat = isLandscape ? 68 : 76
+        return max(
+            52,
+            min(cap, max(floor, shortEdge * (isLandscape ? 0.24 : 0.23)))
+                - crowdingReduction
+        )
+    }
+
+    public static func layout(
+        for partition: PinballRadialPartition,
+        in playfieldSize: CGSize,
+        policy: PinballSeatTokenLayoutPolicy = .production
+    ) -> PinballSeatTokenLayout? {
+        partition.seatTokenLayout(
+            preferredDiameter: preferredDiameter(
+                in: playfieldSize,
+                seatCount: partition.regions.count
+            ),
+            policy: policy
+        )
+    }
 }
 
 /// Equal-area radial ownership of an axis-aligned rectangle.
@@ -135,14 +243,19 @@ public struct PinballRadialPartition: Equatable, Sendable {
             let end = RectangleRadialAreaMap.normalizePhase(
                 fittedOrigin + CGFloat(index + 1) / seatCount
             )
+            let centerPhase = RectangleRadialAreaMap.normalizePhase(
+                fittedOrigin + (CGFloat(index) + 0.5) / seatCount
+            )
             builtRegions.append(
                 PinballRadialRegion(
                     seat: item.tap,
                     clockwiseIndex: index,
                     startPhase: start,
                     endPhase: end,
+                    centerPhase: centerPhase,
                     startBoundaryPoint: map.boundaryPoint(atPhase: start),
                     endBoundaryPoint: map.boundaryPoint(atPhase: end),
+                    centerBoundaryPoint: map.boundaryPoint(atPhase: centerPhase),
                     area: regionArea
                 )
             )
@@ -181,6 +294,276 @@ public struct PinballRadialPartition: Equatable, Sendable {
     /// Clockwise seat order, retaining each caller-supplied stable ID.
     public var clockwiseSeatIDs: [Int] {
         regions.map(\.seat.seatID)
+    }
+
+    /// Finds the largest uniform diameter no greater than `preferredDiameter`
+    /// whose fully scaled face fits every region. Each center stays on a stable
+    /// interior ray: the exact equal-area center for two seats and the angular
+    /// bisector for denser groups, where it balances both divider gaps. It moves
+    /// outward only as much as needed for divider clearance and inward whenever
+    /// the edge requires.
+    ///
+    /// Dense, shallow landscape boards can make a requested diameter
+    /// geometrically impossible. In that case this returns the largest fitting
+    /// diameter instead of moving a token with an unrelated rectangular clamp,
+    /// which could push it back across a divider.
+    public func seatTokenLayout(
+        preferredDiameter: CGFloat,
+        policy: PinballSeatTokenLayoutPolicy = .production
+    ) -> PinballSeatTokenLayout? {
+        guard preferredDiameter.isFinite,
+              preferredDiameter > 0,
+              policy.preferredRadialFraction.isFinite,
+              policy.edgeClearance.isFinite,
+              policy.dividerClearance.isFinite,
+              policy.maximumRenderedScale.isFinite,
+              policy.maximumRenderedScale > 0 else {
+            return nil
+        }
+
+        let maximumDiameter = max(0, preferredDiameter)
+        if let placements = seatTokenPlacements(
+            forDiameter: maximumDiameter,
+            policy: policy
+        ) {
+            return PinballSeatTokenLayout(
+                tokenDiameter: maximumDiameter,
+                maximumRenderedScale: policy.maximumRenderedScale,
+                placements: placements
+            )
+        }
+
+        // Feasibility is monotonic with diameter: a smaller circular face has
+        // no stricter edge or divider requirement. Binary search therefore
+        // retains the largest readable result while keeping the proof simple.
+        guard seatTokenPlacements(forDiameter: 0, policy: policy) != nil else {
+            return nil
+        }
+        var lower: CGFloat = 0
+        var upper = maximumDiameter
+        for _ in 0..<52 {
+            let candidate = (lower + upper) / 2
+            if seatTokenPlacements(forDiameter: candidate, policy: policy) != nil {
+                lower = candidate
+            } else {
+                upper = candidate
+            }
+        }
+
+        guard lower > 0,
+              let placements = seatTokenPlacements(forDiameter: lower, policy: policy) else {
+            return nil
+        }
+        return PinballSeatTokenLayout(
+            tokenDiameter: lower,
+            maximumRenderedScale: policy.maximumRenderedScale,
+            placements: placements
+        )
+    }
+
+    /// Stable display anchor centered inside one seat's equal-area region.
+    ///
+    /// The preferred position is 82% of the way from the playfield center to
+    /// the region's center-ray boundary. Dense layouts may move farther outward
+    /// to clear both divider rays, while large tokens move inward enough to keep
+    /// their complete face inside the playfield. If both clearances cannot be
+    /// satisfied simultaneously, edge clearance wins; callers can then reduce
+    /// the token diameter while retaining the same deterministic anchor.
+    public func tokenAnchor(
+        forSeatID seatID: Int,
+        tokenDiameter: CGFloat,
+        preferredRadialFraction: CGFloat = 0.82,
+        edgePadding: CGFloat = 6,
+        dividerPadding: CGFloat = 4
+    ) -> CGPoint? {
+        guard let region = regions.first(where: { $0.seat.seatID == seatID }),
+              tokenDiameter.isFinite,
+              preferredRadialFraction.isFinite,
+              edgePadding.isFinite,
+              dividerPadding.isFinite else {
+            return nil
+        }
+
+        let ray = CGVector(
+            dx: region.centerBoundaryPoint.x - center.x,
+            dy: region.centerBoundaryPoint.y - center.y
+        )
+        let rayLength = hypot(ray.dx, ray.dy)
+        guard rayLength > 0, rayLength.isFinite else { return nil }
+        let direction = CGVector(dx: ray.dx / rayLength, dy: ray.dy / rayLength)
+
+        let tokenRadius = max(0, tokenDiameter / 2)
+        let safeEdgePadding = max(0, edgePadding)
+        let inset = tokenRadius + safeEdgePadding
+        let maximumDistance = maximumRayDistance(
+            from: center,
+            direction: direction,
+            inside: bounds.insetBy(dx: inset, dy: inset)
+        ) ?? 0
+
+        let preferredDistance = rayLength * min(1, max(0, preferredRadialFraction))
+        let dividerClearance = tokenRadius + max(0, dividerPadding)
+        let requiredDividerDistance = dividerClearance / max(
+            0.000_001,
+            min(
+                sineBetweenCenterRay(
+                    direction,
+                    andBoundaryPoint: region.startBoundaryPoint
+                ),
+                sineBetweenCenterRay(
+                    direction,
+                    andBoundaryPoint: region.endBoundaryPoint
+                )
+            )
+        )
+
+        let distance = min(
+            maximumDistance,
+            max(preferredDistance, requiredDividerDistance)
+        )
+        return CGPoint(
+            x: center.x + direction.dx * distance,
+            y: center.y + direction.dy * distance
+        )
+    }
+
+    private func seatTokenPlacements(
+        forDiameter tokenDiameter: CGFloat,
+        policy: PinballSeatTokenLayoutPolicy
+    ) -> [PinballSeatTokenPlacement]? {
+        let faceRadius = max(0, tokenDiameter / 2) * policy.maximumRenderedScale
+        let safeEdgeClearance = max(0, policy.edgeClearance)
+        let safeDividerClearance = max(0, policy.dividerClearance)
+        let edgeInset = faceRadius + safeEdgeClearance
+        let safeBounds = bounds.insetBy(dx: edgeInset, dy: edgeInset)
+        guard !safeBounds.isNull,
+              !safeBounds.isEmpty,
+              safeBounds.contains(center) else {
+            return nil
+        }
+
+        var placements: [PinballSeatTokenPlacement] = []
+        placements.reserveCapacity(regions.count)
+        for region in regions {
+            guard let direction = tokenDisplayDirection(for: region),
+                  let rayLength = maximumRayDistance(
+                    from: center,
+                    direction: direction,
+                    inside: bounds
+                  ) else {
+                return nil
+            }
+            let minimumSine = min(
+                sineBetweenCenterRay(direction, andBoundaryPoint: region.startBoundaryPoint),
+                sineBetweenCenterRay(direction, andBoundaryPoint: region.endBoundaryPoint)
+            )
+            guard minimumSine > 0, minimumSine.isFinite,
+                  let maximumDistance = maximumRayDistance(
+                    from: center,
+                    direction: direction,
+                    inside: safeBounds
+                  ) else {
+                return nil
+            }
+
+            let minimumDistance = (faceRadius + safeDividerClearance) / minimumSine
+            guard minimumDistance <= maximumDistance + 1e-9 else { return nil }
+            let preferredDistance = rayLength * min(
+                1,
+                max(0, policy.preferredRadialFraction)
+            )
+            let distance = min(maximumDistance, max(preferredDistance, minimumDistance))
+            let tokenCenter = CGPoint(
+                x: center.x + direction.dx * distance,
+                y: center.y + direction.dy * distance
+            )
+            placements.append(
+                PinballSeatTokenPlacement(
+                    seatID: region.seat.seatID,
+                    center: tokenCenter
+                )
+            )
+        }
+        return placements
+    }
+
+    /// The area-midpoint ray is the right ownership primitive, but on a very
+    /// wide rectangle it is not necessarily the visual angle halfway between
+    /// the two dividers. Tokens use that angular bisector so the two visible
+    /// gaps are balanced and the available wedge width is not needlessly lost.
+    /// The two-seat case has opposite boundaries, so its exact area-center ray
+    /// remains the deterministic half-plane bisector.
+    private func tokenDisplayDirection(for region: PinballRadialRegion) -> CGVector? {
+        let centerRay = CGVector(
+            dx: region.centerBoundaryPoint.x - center.x,
+            dy: region.centerBoundaryPoint.y - center.y
+        )
+        let centerLength = hypot(centerRay.dx, centerRay.dy)
+        guard centerLength > 0, centerLength.isFinite else { return nil }
+        let centerDirection = CGVector(
+            dx: centerRay.dx / centerLength,
+            dy: centerRay.dy / centerLength
+        )
+        guard regions.count > 2,
+              let start = unitDirection(to: region.startBoundaryPoint),
+              let end = unitDirection(to: region.endBoundaryPoint) else {
+            return centerDirection
+        }
+
+        var bisector = CGVector(dx: start.dx + end.dx, dy: start.dy + end.dy)
+        let length = hypot(bisector.dx, bisector.dy)
+        guard length > 1e-9, length.isFinite else { return centerDirection }
+        bisector = CGVector(dx: bisector.dx / length, dy: bisector.dy / length)
+        if bisector.dx * centerDirection.dx + bisector.dy * centerDirection.dy < 0 {
+            bisector = CGVector(dx: -bisector.dx, dy: -bisector.dy)
+        }
+        return bisector
+    }
+
+    private func unitDirection(to point: CGPoint) -> CGVector? {
+        let vector = CGVector(dx: point.x - center.x, dy: point.y - center.y)
+        let length = hypot(vector.dx, vector.dy)
+        guard length > 0, length.isFinite else { return nil }
+        return CGVector(dx: vector.dx / length, dy: vector.dy / length)
+    }
+
+    private func sineBetweenCenterRay(
+        _ centerDirection: CGVector,
+        andBoundaryPoint boundaryPoint: CGPoint
+    ) -> CGFloat {
+        let boundary = CGVector(
+            dx: boundaryPoint.x - center.x,
+            dy: boundaryPoint.y - center.y
+        )
+        let length = hypot(boundary.dx, boundary.dy)
+        guard length > 0 else { return 0 }
+        let unit = CGVector(dx: boundary.dx / length, dy: boundary.dy / length)
+        return abs(centerDirection.dx * unit.dy - centerDirection.dy * unit.dx)
+    }
+
+    private func maximumRayDistance(
+        from origin: CGPoint,
+        direction: CGVector,
+        inside rectangle: CGRect
+    ) -> CGFloat? {
+        guard !rectangle.isNull,
+              !rectangle.isEmpty,
+              rectangle.contains(origin) else {
+            return nil
+        }
+
+        var distances: [CGFloat] = []
+        if direction.dx > 0 {
+            distances.append((rectangle.maxX - origin.x) / direction.dx)
+        } else if direction.dx < 0 {
+            distances.append((rectangle.minX - origin.x) / direction.dx)
+        }
+        if direction.dy > 0 {
+            distances.append((rectangle.maxY - origin.y) / direction.dy)
+        } else if direction.dy < 0 {
+            distances.append((rectangle.minY - origin.y) / direction.dy)
+        }
+        return distances.filter { $0 >= 0 && $0.isFinite }.min()
     }
 }
 
