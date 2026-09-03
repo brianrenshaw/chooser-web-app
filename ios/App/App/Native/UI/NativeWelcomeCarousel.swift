@@ -27,11 +27,14 @@ public enum NativeWelcomePage: String, CaseIterable, Identifiable, Sendable {
     }
 }
 
-/// The first-run introduction: one page per mode, presented as a full screen
-/// cover over `ChooserRootView`.
+/// The first-run introduction: one page per mode, presented as a drag-dismissible
+/// sheet over `ChooserRootView`.
 ///
 /// Presentation notes for anyone editing this:
-/// - A cover is a **separate environment tree**. The four `chooser*` values are
+/// - It is presented at a partial detent so the board stays visible above it and
+///   it reads as a card rather than a takeover. Do not add `.statusBarHidden`
+///   here; a sheet does not own the status bar.
+/// - A sheet is a **separate environment tree**. The four `chooser*` values are
 ///   re-injected here, exactly as `NativeOfflineInformationFlow` does for the
 ///   settings sheet. Removing them silently falls back to default theming.
 /// - The three-finger shuffle gesture lives on the root's `.background` and
@@ -85,7 +88,6 @@ public struct NativeWelcomeCarousel: View {
         // not behind an accessibility container boundary, so one here would
         // silently overwrite `welcome-skip`, `welcome-continue`, and the rest.
         // `welcome-pages` is the carousel's presence marker instead.
-        .statusBarHidden(true)
         .tint(colorTheme.interactiveTextColor)
         .environment(\.chooserAccentColor, colorTheme.accentColor)
         .environment(\.chooserColorTheme, colorTheme)
@@ -104,32 +106,28 @@ public struct NativeWelcomeCarousel: View {
 
     // MARK: - Header
 
+    /// Deliberately one short line, and deliberately without the Skip button.
+    ///
+    /// A sheet is height-constrained where the full screen was not, so a
+    /// two-line header stacked above the pages is the first thing to clip at
+    /// large Dynamic Type sizes. The tagline lives on the About screen, and
+    /// dismissal now belongs at the bottom next to Continue where the thumb
+    /// already is — the drag indicator covers the gesture affordance.
     private var header: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 12) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(copy.appName)
-                    .font(.system(.title2, design: .rounded, weight: .bold))
-                Text(copy.tagline)
-                    .font(.system(.footnote, design: .rounded, weight: .regular))
-                    .foregroundStyle(colorTheme.informationPanelInkColor.opacity(0.86))
-            }
+        Text(copy.appName)
+            .font(.system(.headline, design: .rounded, weight: .bold))
             .frame(maxWidth: .infinity, alignment: .leading)
             .fixedSize(horizontal: false, vertical: true)
-            .accessibilityElement(children: .combine)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 8)
+            .nativeBoardPanel(cornerRadius: 16)
+            .padding(.top, 6)
+            .layoutPriority(1)
             .accessibilityAddTraits(.isHeader)
             .accessibilityAction(named: Text("Shuffle colors")) {
                 _ = onShuffleColorTheme()
             }
-            // On the combined text element only. Putting this on the enclosing
-            // HStack would overwrite the Skip button's own identifier.
             .accessibilityIdentifier("welcome-title")
-
-            skipButton
-        }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
-        .nativeBoardPanel(cornerRadius: 16)
-        .padding(.top, 10)
     }
 
     private var skipButton: some View {
@@ -140,7 +138,7 @@ public struct NativeWelcomeCarousel: View {
             .contentShape(Rectangle())
             .accessibilityHint("Closes the introduction")
             .accessibilityIdentifier("welcome-skip")
-            // Kept in the layout on the last page so the header never changes
+            // Kept in the layout on the last page so the footer never changes
             // height mid-carousel.
             .opacity(isLastPage ? 0 : 1)
             .allowsHitTesting(!isLastPage)
@@ -205,9 +203,16 @@ public struct NativeWelcomeCarousel: View {
                 value: isLastPage
             )
             .accessibilityIdentifier("welcome-continue")
+
+            skipButton
         }
         .padding(.horizontal, 22)
         .padding(.bottom, verticalSizeClass == .compact ? 10 : 22)
+        // Same reasoning as the header: inside a height-constrained sheet the
+        // paging ScrollView will happily take every available point and squeeze
+        // the fixed chrome, which clips these labels at large Dynamic Type
+        // sizes. The scrollable page area is what should give way.
+        .layoutPriority(1)
     }
 
     // MARK: - Paging
@@ -322,10 +327,13 @@ struct NativeWelcomePageView: View {
         }
     }
 
+    /// Tuned for the sheet's partial detent, which is materially shorter than
+    /// the full screen this originally occupied. The caps keep the artwork from
+    /// crowding out the text block on small phones.
     private func illustrationHeight(in size: CGSize) -> CGFloat {
-        if dynamicTypeSize.isAccessibilitySize { return 88 }
-        if usesWideLayout { return min(size.height * 0.72, 220) }
-        return min(size.height * 0.46, 300)
+        if dynamicTypeSize.isAccessibilitySize { return 76 }
+        if usesWideLayout { return min(size.height * 0.66, 190) }
+        return min(size.height * 0.40, 220)
     }
 }
 

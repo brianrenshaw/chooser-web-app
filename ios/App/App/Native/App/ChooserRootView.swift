@@ -87,6 +87,35 @@ public struct ChooserRootView: View {
                     }
                 }
             }
+            // Deliberately attached to the NavigationStack rather than to the
+            // outer view, which already owns the Settings sheet. Two `.sheet`
+            // modifiers on one anchor is the classic SwiftUI presentation
+            // conflict; separate anchors remove the structural hazard while the
+            // model gating below stays the actual correctness guarantee.
+            //
+            // Presented OVER the board, never instead of it: replacing
+            // ChooserRootView would unmount `.onOpenURL` and swallow an App
+            // Shortcut's cold-launch deep link.
+            .sheet(item: welcomeBinding) { _ in
+                NativeWelcomeCarousel(
+                    copy: .chooser(version: appVersion),
+                    colorTheme: model.colorTheme,
+                    onFinish: model.completeOnboarding,
+                    onSkip: model.skipOnboarding,
+                    onShuffleColorTheme: model.randomizeColorTheme
+                )
+                // `.large` rather than a partial fraction. A fixed-fraction
+                // detent gives the pinned footer a height it cannot grow out
+                // of, and `performAccessibilityAudit` correctly reports the
+                // Continue label as clipped at larger Dynamic Type sizes —
+                // verified at both 0.75 and 0.85, while `.large` passes. A
+                // large sheet is still a card, not the takeover this replaced:
+                // rounded corners, the board visible above it, a drag
+                // indicator, and swipe-to-dismiss.
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
+                .presentationBackground(model.colorTheme.visualTheme.surfaceGradient)
+            }
         }
         .background {
             NativeThreeFingerThemeShuffleGesture {
@@ -137,18 +166,6 @@ public struct ChooserRootView: View {
             .presentationDragIndicator(.visible)
             .presentationSizing(.form)
         }
-        // Presented OVER this view, never instead of it. Replacing
-        // `ChooserRootView` with the carousel would unmount `.onOpenURL` below
-        // and silently swallow an App Shortcut's cold-launch deep link.
-        .fullScreenCover(item: welcomeBinding) { _ in
-            NativeWelcomeCarousel(
-                copy: .chooser(version: appVersion),
-                colorTheme: model.colorTheme,
-                onFinish: model.completeOnboarding,
-                onSkip: model.skipOnboarding,
-                onShuffleColorTheme: model.randomizeColorTheme
-            )
-        }
         .alert(item: $model.confirmation, content: confirmationAlert)
         .onOpenURL { url in
             guard let requestedMode = AppMode(deepLinkURL: url) else { return }
@@ -159,10 +176,13 @@ public struct ChooserRootView: View {
         }
     }
 
-    /// Filtered so only the welcome reaches the cover; the per-mode card is an
-    /// overlay instead. The nil-setter matters: a VoiceOver escape gesture or a
-    /// Guided Access dismissal bypasses the buttons entirely, and without this
-    /// those people would meet the tour again on every launch.
+    /// Filtered so only the welcome reaches the sheet; the per-mode card is an
+    /// overlay instead.
+    ///
+    /// The nil-setter is load-bearing: it is what makes **drag-to-dismiss**
+    /// write the seen flag, and it also covers a VoiceOver escape gesture or a
+    /// Guided Access dismissal. Without it, anyone who swiped the sheet away
+    /// would meet the tour again on every launch.
     private var welcomeBinding: Binding<OnboardingMoment?> {
         Binding(
             get: { model.presentedOnboarding == .welcome ? model.presentedOnboarding : nil },

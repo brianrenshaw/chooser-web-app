@@ -141,7 +141,10 @@ struct ChooserAdaptiveLabel: View {
     var body: some View {
         Label(title, systemImage: systemImage)
         .font(.system(.body, design: .rounded, weight: .bold))
-        .lineLimit(2)
+        // Deliberately no `lineLimit`. A cap of 2 truncated these labels at
+        // large Dynamic Type sizes, which `performAccessibilityAudit` reports as
+        // clipped text. `fixedSize(vertical:)` already lets the label take the
+        // height it needs, and every dock that hosts these buttons reflows.
         .multilineTextAlignment(.center)
         .fixedSize(horizontal: false, vertical: true)
         .padding(.horizontal, 4)

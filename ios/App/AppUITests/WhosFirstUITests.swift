@@ -90,6 +90,44 @@ final class WhosFirstUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Tap In"].waitForExistence(timeout: 3))
     }
 
+    /// Dragging the sheet down must retire the welcome exactly like Skip does.
+    /// The flag write happens through the presentation binding's nil-setter, not
+    /// through any button, so this is the path a regression would silently break.
+    @MainActor
+    func testDraggingTheWelcomeSheetDownDismissesItAndDoesNotBringItBack() {
+        let app = launchApp(onboardingSeen: false)
+        let carousel = app.descendants(matching: .any)["welcome-pages"]
+        XCTAssertTrue(carousel.waitForExistence(timeout: 5))
+
+        // The board is visible above the sheet, which is the point of the
+        // partial detent; drag from the sheet's top edge down past it.
+        let start = carousel.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.02))
+        let finish = app.windows.firstMatch.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 1.4))
+        start.press(forDuration: 0.1, thenDragTo: finish)
+
+        XCTAssertTrue(app.descendants(matching: .any)["together-stage"].waitForExistence(timeout: 5))
+        XCTAssertFalse(carousel.waitForExistence(timeout: 1))
+
+        // Assert the completion actually ran, in-session, rather than
+        // relaunching to inspect UserDefaults. A relaunch would be testing
+        // whether defaults flushed to disk in time, which is a different and
+        // inherently racy question. Finishing the welcome retires the card for
+        // the mode on screen, so Chooser must be clear while Tap In still owes
+        // its card — that pair only holds if `completeOnboarding()` ran.
+        selectMode("Tap In", currentLabel: "Chooser mode", in: app)
+        XCTAssertTrue(
+            app.descendants(matching: .any)["mode-intro-card-tap-in"].waitForExistence(timeout: 3),
+            "Tap In has not been introduced yet, so its card is still owed"
+        )
+        app.buttons["mode-intro-dismiss"].tap()
+
+        selectMode("Chooser", currentLabel: "Tap In mode", in: app)
+        XCTAssertFalse(
+            app.descendants(matching: .any)["mode-intro-card-together"].waitForExistence(timeout: 1),
+            "Dragging the welcome away must retire the card for the mode it covered"
+        )
+    }
+
     @MainActor
     func testSkippingTheWelcomeGoesStraightToTheBoard() {
         let app = launchApp(onboardingSeen: false)
