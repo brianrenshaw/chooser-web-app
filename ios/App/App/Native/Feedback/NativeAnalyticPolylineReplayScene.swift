@@ -81,6 +81,12 @@ public struct NativeReplayVisualStyle {
     public let showsGuide: Bool
     public let settlesAtEndpoint: Bool
     public let reducesMotion: Bool
+    /// Accessibility preferences, carried as plain Bools rather than as a
+    /// `BoardAccessibilityAppearancePolicy` because that type is internal and
+    /// this style is public. The scene composes the policy from these.
+    public let increasesContrast: Bool
+    public let reducesTransparency: Bool
+    public let differentiatesWithoutColor: Bool
 
     public init(
         backgroundColor: UIColor = .clear,
@@ -95,7 +101,10 @@ public struct NativeReplayVisualStyle {
         cursorRadius: CGFloat = 7,
         showsGuide: Bool = true,
         settlesAtEndpoint: Bool = false,
-        reducesMotion: Bool = false
+        reducesMotion: Bool = false,
+        increasesContrast: Bool = false,
+        reducesTransparency: Bool = false,
+        differentiatesWithoutColor: Bool = false
     ) {
         self.backgroundColor = backgroundColor
         self.guideColor = guideColor
@@ -110,6 +119,9 @@ public struct NativeReplayVisualStyle {
         self.showsGuide = showsGuide
         self.settlesAtEndpoint = settlesAtEndpoint
         self.reducesMotion = reducesMotion
+        self.increasesContrast = increasesContrast
+        self.reducesTransparency = reducesTransparency
+        self.differentiatesWithoutColor = differentiatesWithoutColor
     }
 }
 
@@ -141,12 +153,35 @@ public enum NativePinballReplayMetrics {
     }()
 }
 
+/// A seat ring the analytic marcher recorded the ball bouncing off.
+///
+/// Authored by the host from `PinballTrajectory.vertexKinds` and keyed by
+/// polyline vertex index, the same side-channel discipline as
+/// `fairnessDeflectorVertexIndex`. The scene cannot derive this: reflection-sign
+/// analysis drops a glancing circular bounce and misreads a steep one as a wall.
+public struct NativeReplayBumperMark: Equatable, Sendable {
+    public let seatID: Int
+    /// Ring center in analytic coordinates; mapped through the point mapper.
+    public let center: CGPoint
+    /// Ring radius in analytic units. Only a fallback: the scene prefers a
+    /// radius measured from the mapped contact point, which survives any mapper.
+    public let radius: CGFloat
+
+    public init(seatID: Int, center: CGPoint, radius: CGFloat) {
+        self.seatID = seatID
+        self.center = center
+        self.radius = radius
+    }
+}
+
 public struct NativeAnalyticReplayPlan {
     public let polyline: [CGPoint]
     public let duration: TimeInterval
     /// Index in `polyline` of the one disclosed fairness deflector. It is not
     /// rendered as an ordinary wall impact even though it occurs on an edge.
     public let fairnessDeflectorVertexIndex: Int?
+    /// Seat rings struck along the path, keyed by `polyline` vertex index.
+    public let bumperMarks: [Int: NativeReplayBumperMark]
     public let regions: [NativeReplayRegion]
     public let winnerFlashes: [NativeReplayWinnerFlash]
     public let style: NativeReplayVisualStyle
@@ -155,6 +190,7 @@ public struct NativeAnalyticReplayPlan {
         polyline: [CGPoint],
         duration: TimeInterval,
         fairnessDeflectorVertexIndex: Int? = nil,
+        bumperMarks: [Int: NativeReplayBumperMark] = [:],
         regions: [NativeReplayRegion] = [],
         winnerFlashes: [NativeReplayWinnerFlash] = [],
         style: NativeReplayVisualStyle = NativeReplayVisualStyle()
@@ -162,6 +198,7 @@ public struct NativeAnalyticReplayPlan {
         self.polyline = polyline
         self.duration = max(0, duration)
         self.fairnessDeflectorVertexIndex = fairnessDeflectorVertexIndex
+        self.bumperMarks = bumperMarks
         self.regions = regions
         self.winnerFlashes = winnerFlashes
         self.style = style
@@ -245,12 +282,43 @@ enum PolylineImpactEdge: Hashable, Sendable {
     case bottom
 }
 
+/// A resolved seat contact: which ring, and where on it, in scene coordinates.
+struct PolylineBumperContact: Equatable, Sendable {
+    let seatID: Int
+    let center: CGPoint
+    let radius: CGFloat
+    /// Unit outward normal at the contact point.
+    let normal: CGVector
+}
+
 struct PolylineImpact: Equatable, Sendable {
     let vertexIndex: Int
     let progress: Double
     let point: CGPoint
     let edges: Set<PolylineImpactEdge>
     let wallNormalImpulseFraction: Double
+    /// Set only for a seat-ring contact, which is authored rather than derived.
+    /// A bumper impact carries no `edges`, so it is never drawn on a wall and
+    /// is never reported as a corner.
+    let bumper: PolylineBumperContact?
+
+    // Explicit rather than memberwise: `bumper` needs a default so the two
+    // existing construction sites keep compiling unchanged.
+    init(
+        vertexIndex: Int,
+        progress: Double,
+        point: CGPoint,
+        edges: Set<PolylineImpactEdge>,
+        wallNormalImpulseFraction: Double,
+        bumper: PolylineBumperContact? = nil
+    ) {
+        self.vertexIndex = vertexIndex
+        self.progress = progress
+        self.point = point
+        self.edges = edges
+        self.wallNormalImpulseFraction = wallNormalImpulseFraction
+        self.bumper = bumper
+    }
 }
 
 enum PolylineImpactAnalysis {
@@ -575,6 +643,7 @@ public final class NativeAnalyticPolylineReplayScene: SKScene {
         let mappedPoints = plan.polyline.map { pointMapper($0, size) }
         sampler = PolylineSampler(points: mappedPoints)
         impacts = PolylineImpactAnalysis.impacts(in: mappedPoints)
+        applyAuthoredBumperContacts(plan.bumperMarks, in: mappedPoints)
         injectTaggedFairnessDeflectorIfNeeded(
             at: plan.fairnessDeflectorVertexIndex,
             in: mappedPoints
@@ -624,6 +693,101 @@ public final class NativeAnalyticPolylineReplayScene: SKScene {
     /// reflection-sign analysis intentionally ignores it as numerical noise.
     /// Authored metadata is stronger evidence: the tagged wall vertex must
     /// still disclose and emit its single Fair Bounce event.
+    /// Replaces or synthesizes impacts at vertices the marcher recorded as seat
+    /// contacts.
+    ///
+    /// `PolylineImpactAnalysis` is deliberately left alone: it stays a pure
+    /// geometric function over points, and relaxing it would both break its
+    /// collinear-vertex contract and emit spurious impacts for the float noise
+    /// its tolerance exists to suppress. Authored metadata is stronger evidence,
+    /// exactly as it is for the tagged fairness deflector below.
+    ///
+    /// Two fixes fall out. A glancing bounce preserves both direction-component
+    /// signs, so geometry finds no impact at all and one is synthesized here. A
+    /// steep bounce is found but misattributed to a wall, so it is replaced with
+    /// empty `edges` — which keeps it off `showOrdinaryImpactMark`, and so out of
+    /// `visibleEdgePoint`, which would otherwise snap its mark to the border.
+    private func applyAuthoredBumperContacts(
+        _ marks: [Int: NativeReplayBumperMark],
+        in points: [CGPoint]
+    ) {
+        guard !marks.isEmpty, points.count > 2 else { return }
+
+        var cumulativeLengths = [CGFloat](repeating: 0, count: points.count)
+        for pointIndex in 1..<points.count {
+            cumulativeLengths[pointIndex] = cumulativeLengths[pointIndex - 1] + hypot(
+                points[pointIndex].x - points[pointIndex - 1].x,
+                points[pointIndex].y - points[pointIndex - 1].y
+            )
+        }
+        guard let totalLength = cumulativeLengths.last, totalLength > 0 else { return }
+
+        let ballRadius = NativePinballReplayMetrics.ballDiameter / 2
+
+        for (index, mark) in marks {
+            guard index > 0, index < points.count - 1 else { continue }
+            // A deflector is authored on a wall and can never also be a bumper.
+            // Skipping keeps a future change to the splice degrading to today's
+            // behaviour instead of drawing a ring on the playfield border.
+            if rawPlan?.fairnessDeflectorVertexIndex == index { continue }
+
+            let contactPoint = points[index]
+            let sceneCenter = pointMapper(mark.center, size)
+
+            // Radius and normal come from mapped points, never from mapping a
+            // vector: `NativeReplayPointMapper` maps points and has no defined
+            // linear part, and the Pinball mapper is a Y-flip that would negate
+            // a naively mapped normal into a translated garbage vector.
+            var normalX = contactPoint.x - sceneCenter.x
+            var normalY = contactPoint.y - sceneCenter.y
+            let centerDistance = hypot(normalX, normalY)
+            guard centerDistance > 0 else { continue }
+            normalX /= centerDistance
+            normalY /= centerDistance
+
+            // Inverse of the Minkowski inflation the marcher collided against,
+            // so the drawn ring lands on the artwork under any isometric mapper.
+            let measuredRadius = centerDistance - ballRadius
+            let sceneRadius = measuredRadius > 0 ? measuredRadius : mark.radius
+
+            let incoming = CGVector(
+                dx: contactPoint.x - points[index - 1].x,
+                dy: contactPoint.y - points[index - 1].y
+            )
+            let incomingMagnitude = max(hypot(incoming.dx, incoming.dy), .leastNonzeroMagnitude)
+            let normalComponent = abs(
+                incoming.dx * normalX + incoming.dy * normalY
+            ) / incomingMagnitude
+
+            let repaired = PolylineImpact(
+                vertexIndex: index,
+                progress: Double(cumulativeLengths[index] / totalLength),
+                point: contactPoint,
+                edges: [],
+                wallNormalImpulseFraction: Double(min(1, max(0, normalComponent))),
+                bumper: PolylineBumperContact(
+                    seatID: mark.seatID,
+                    center: sceneCenter,
+                    radius: sceneRadius,
+                    normal: CGVector(dx: normalX, dy: normalY)
+                )
+            )
+
+            if let existing = impacts.firstIndex(where: { $0.vertexIndex == index }) {
+                impacts[existing] = repaired
+            } else {
+                impacts.append(repaired)
+            }
+        }
+
+        impacts.sort { first, second in
+            if first.progress == second.progress {
+                return first.vertexIndex < second.vertexIndex
+            }
+            return first.progress < second.progress
+        }
+    }
+
     private func injectTaggedFairnessDeflectorIfNeeded(
         at optionalIndex: Int?,
         in points: [CGPoint]
@@ -800,14 +964,19 @@ public final class NativeAnalyticPolylineReplayScene: SKScene {
 
     private func showImpact(_ impact: PolylineImpact) {
         let isFairnessDeflection = rawPlan?.fairnessDeflectorVertexIndex == impact.vertexIndex
-        if isFairnessDeflection {
+        if let bumper = impact.bumper {
+            showBumperStrike(bumper)
+        } else if isFairnessDeflection {
             showFairnessDeflector(impact)
         } else {
             showOrdinaryImpactMark(impact)
         }
 
+        // A bumper carries no edges, so give `squashPearl` the dominant axis of
+        // its contact normal. It only reads the set to choose a compression
+        // axis, so this is faithful to the real contact.
         squashPearl(
-            for: impact.edges,
+            for: impact.bumper.map { Self.dominantAxisEdges(for: $0.normal) } ?? impact.edges,
             wallNormalImpulseFraction: CGFloat(impact.wallNormalImpulseFraction)
         )
         callbacks.onImpact(
@@ -1281,6 +1450,113 @@ public final class NativeAnalyticPolylineReplayScene: SKScene {
         }
     }
 
+    /// The authored scale-in / fade-out ring pulse, shared by the winner flash
+    /// and the bumper strike. One pulse, two schedules: the winner flash fires
+    /// on wall-clock delays after the run, while a strike is triggered by the
+    /// render pass at the contact frame.
+    private static func ringPulseAction() -> SKAction {
+        SKAction.sequence([
+            SKAction.group([
+                SKAction.fadeAlpha(to: 0.95, duration: 0.05),
+                SKAction.scale(to: 0.28, duration: 0)
+            ]),
+            SKAction.group([
+                SKAction.scale(to: 1.25, duration: 0.24),
+                SKAction.fadeOut(withDuration: 0.24)
+            ])
+        ])
+    }
+
+    /// The compression axis for a contact normal, in the vocabulary
+    /// `squashPearl` already understands.
+    private static func dominantAxisEdges(for normal: CGVector) -> Set<PolylineImpactEdge> {
+        if abs(normal.dx) >= abs(normal.dy) {
+            return [normal.dx > 0 ? .right : .left]
+        }
+        return [normal.dy > 0 ? .top : .bottom]
+    }
+
+    /// Lights the struck seat ring on the frame the contact is drawn.
+    ///
+    /// Runs from the render pass, so the ring appears in the very frame that
+    /// draws the ball at the vertex — the same discipline the endpoint settle
+    /// uses to keep its cue from arriving after the rebound.
+    ///
+    /// Hue does no work here. What separates a seat strike from a wall mark is
+    /// position (at a ring, not the border), shape (a closed ring plus a contact
+    /// arc, not a line), and motion (a radial pulse, not a fade).
+    private func showBumperStrike(_ bumper: PolylineBumperContact) {
+        guard let style = rawPlan?.style else { return }
+        let policy = BoardAccessibilityAppearancePolicy(
+            reduceTransparency: style.reducesTransparency,
+            increasedContrast: style.increasesContrast,
+            differentiateWithoutColor: style.differentiatesWithoutColor
+        )
+
+        let name = "bumper-strike:\(bumper.seatID)"
+        // Restart rather than composite to double brightness when the ball
+        // strikes the same ring twice.
+        impactLayer.childNode(withName: name)?.removeFromParent()
+
+        let node = SKNode()
+        node.name = name
+        node.position = bumper.center
+        node.zPosition = 4
+        node.alpha = 0
+
+        let lineWidth = 2.4 * policy.edgeWidthMultiplier
+        let strokeAlpha = min(1, 0.78 * policy.edgeOpacityMultiplier)
+
+        let ring = SKShapeNode(circleOfRadius: bumper.radius)
+        ring.strokeColor = style.impactColor.withAlphaComponent(strokeAlpha)
+        ring.lineWidth = lineWidth
+        // Reduce Transparency drops the decorative wash and keeps the ring solid.
+        ring.fillColor = policy.reduceTransparency
+            ? .clear
+            : style.impactColor.withAlphaComponent(0.08)
+        ring.glowWidth = 0
+        node.addChild(ring)
+
+        // The contact arc says *where* on the ring the ball landed. Under
+        // Differentiate Without Color it is dashed, reusing the winner
+        // contour's shape vocabulary so the cue survives without hue.
+        let contactAngle = atan2(bumper.normal.dy, bumper.normal.dx)
+        let arcPath = CGMutablePath()
+        arcPath.addArc(
+            center: .zero,
+            radius: bumper.radius,
+            startAngle: contactAngle - 0.35,
+            endAngle: contactAngle + 0.35,
+            clockwise: false
+        )
+        let arc = SKShapeNode(
+            path: policy.showsWinnerContour
+                ? arcPath.copy(dashingWithPhase: 0, lengths: [5, 3.4])
+                : arcPath
+        )
+        arc.strokeColor = style.impactColor
+        arc.lineWidth = lineWidth * 1.9
+        arc.lineCap = .round
+        arc.glowWidth = 0
+        node.addChild(arc)
+
+        impactLayer.addChild(node)
+
+        // Node-scoped actions only. Neither `scene.run` nor a `Task` is torn
+        // down by `cancelReplay`, which clears this layer.
+        if style.reducesMotion {
+            node.setScale(1)
+            node.run(.sequence([
+                .fadeAlpha(to: 0.95, duration: 0.05),
+                .wait(forDuration: 0.18),
+                .fadeOut(withDuration: 0.16),
+                .removeFromParent()
+            ]))
+        } else {
+            node.run(.sequence([Self.ringPulseAction(), .removeFromParent()]))
+        }
+    }
+
     private func drawWinnerFlashes(notify: Bool) {
         flashLayer.removeAllChildren()
         for flash in resolvedFlashes {
@@ -1295,17 +1571,7 @@ public final class NativeAnalyticPolylineReplayScene: SKScene {
             node.zPosition = 100
             flashLayer.addChild(node)
 
-            let pulse = SKAction.sequence([
-                SKAction.group([
-                    SKAction.fadeAlpha(to: 0.95, duration: 0.05),
-                    SKAction.scale(to: 0.28, duration: 0)
-                ]),
-                SKAction.group([
-                    SKAction.scale(to: 1.25, duration: 0.24),
-                    SKAction.fadeOut(withDuration: 0.24)
-                ])
-            ])
-            let repeated = SKAction.repeat(pulse, count: flash.repetitions)
+            let repeated = SKAction.repeat(Self.ringPulseAction(), count: flash.repetitions)
             var actions: [SKAction] = [.wait(forDuration: flash.delay)]
             if notify {
                 actions.append(.run { [weak self] in

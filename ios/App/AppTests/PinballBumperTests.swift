@@ -148,6 +148,87 @@ final class PinballBumperTests: XCTestCase {
         XCTAssertEqual(trajectory.vertexKinds.count, max(0, trajectory.segments.count - 1))
     }
 
+    // MARK: - Recovering contacts for presentation
+
+    func testBumperContactsRecoverSeatIdentityAndTheDrawnRing() throws {
+        let bumper = PinballBumper(seatID: 4, center: CGPoint(x: 150, y: 400), radius: 20)
+        let launch = try PinballLaunch(
+            start: CGPoint(x: 150, y: 100),
+            direction: CGVector(dx: 0, dy: 1),
+            distance: 400
+        )
+        let bumperField = field([bumper])
+        let trajectory = try PinballBilliards.trajectory(
+            for: launch,
+            in: bounds,
+            bumpers: bumperField
+        )
+
+        let contacts = trajectory.bumperContacts(in: bumperField)
+        let contact = try XCTUnwrap(contacts.first)
+        XCTAssertEqual(contact.seatID, 4)
+        XCTAssertEqual(contact.center, bumper.center)
+        // The drawn radius, not the ball-inflated collision radius.
+        XCTAssertEqual(contact.radius, 20, accuracy: 1e-9)
+
+        // The recorded vertex indexes into `points`, and the contact sits on
+        // the inflated disc exactly where the marcher put it.
+        let points = trajectory.points
+        let contactPoint = points[contact.vertexIndex]
+        XCTAssertEqual(
+            hypot(contactPoint.x - bumper.center.x, contactPoint.y - bumper.center.y),
+            bumperField.collisionRadius(for: bumper),
+            accuracy: 1e-6
+        )
+    }
+
+    func testEveryBumperVertexBecomesExactlyOneContact() throws {
+        let bumpers = [
+            PinballBumper(seatID: 1, center: CGPoint(x: 90, y: 220), radius: 22),
+            PinballBumper(seatID: 2, center: CGPoint(x: 210, y: 380), radius: 22)
+        ]
+        let launch = try PinballLaunch(
+            start: CGPoint(x: 40, y: 120),
+            direction: CGVector(dx: 0.55, dy: 0.84),
+            distance: 2200
+        )
+        let bumperField = field(bumpers)
+        let trajectory = try PinballBilliards.trajectory(
+            for: launch,
+            in: bounds,
+            bumpers: bumperField
+        )
+
+        let recordedBumperVertices = trajectory.vertexKinds.filter { $0.bumperSeatID != nil }.count
+        let contacts = trajectory.bumperContacts(in: bumperField)
+        XCTAssertEqual(contacts.count, recordedBumperVertices)
+        XCTAssertEqual(contacts.map(\.vertexIndex), contacts.map(\.vertexIndex).sorted())
+        for contact in contacts {
+            XCTAssertEqual(
+                trajectory.vertexKind(atPointIndex: contact.vertexIndex)?.bumperSeatID,
+                contact.seatID
+            )
+        }
+    }
+
+    func testABumperFreeTrajectoryReportsNoContacts() throws {
+        // `vertexKinds` is legitimately empty for the unfolded solver, so this
+        // must return nothing rather than trapping on an out-of-range index.
+        let launch = try PinballLaunch(
+            start: CGPoint(x: 70, y: 110),
+            direction: CGVector(dx: 0.37, dy: 0.93),
+            distance: 1700
+        )
+        let trajectory = try PinballBilliards.trajectory(for: launch, in: bounds)
+        XCTAssertTrue(trajectory.vertexKinds.isEmpty)
+        XCTAssertTrue(
+            trajectory.bumperContacts(
+                in: field([PinballBumper(seatID: 1, center: CGPoint(x: 150, y: 300), radius: 20)])
+            ).isEmpty
+        )
+        XCTAssertTrue(trajectory.bumperContacts(in: .empty).isEmpty)
+    }
+
     // MARK: - Compatibility
 
     func testAnEmptyFieldReproducesTheUnfoldedSolverExactly() throws {

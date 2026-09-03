@@ -476,6 +476,250 @@ final class PinballMotionAndFairnessTests: XCTestCase {
         XCTAssertEqual(finishCount, 1)
     }
 
+    // MARK: - Bumper strikes
+
+    /// A glancing circular bounce preserves both direction-component signs, so
+    /// the geometric layer finds nothing. Authored metadata has to carry it.
+    @MainActor
+    func testAGlancingBumperVertexStillEmitsARenderedImpact() throws {
+        let polyline = [
+            CGPoint(x: 0, y: 0),
+            CGPoint(x: 10, y: 5),
+            CGPoint(x: 21, y: 9)
+        ]
+        XCTAssertTrue(
+            PolylineImpactAnalysis.impacts(in: polyline).isEmpty,
+            "The geometric layer is deliberately unchanged and still finds no turn here."
+        )
+
+        let scene = NativeAnalyticPolylineReplayScene(size: CGSize(width: 40, height: 40))
+        var renderedImpacts: [NativeAnalyticReplayImpact] = []
+        scene.replay(
+            NativeAnalyticReplayPlan(
+                polyline: polyline,
+                duration: 1,
+                bumperMarks: [
+                    1: NativeReplayBumperMark(
+                        seatID: 7,
+                        center: CGPoint(x: 10, y: 25),
+                        radius: 5
+                    )
+                ]
+            ),
+            callbacks: NativeAnalyticReplayCallbacks(
+                onImpact: { renderedImpacts.append($0) }
+            )
+        )
+
+        scene.update(10)
+        XCTAssertTrue(renderedImpacts.isEmpty)
+        scene.update(10.6)
+
+        XCTAssertEqual(renderedImpacts.map(\.vertexIndex), [1])
+        XCTAssertNotNil(scene.childNode(withName: "//bumper-strike:7"))
+        XCTAssertNil(
+            scene.childNode(withName: "//impact-edge"),
+            "A seat contact must never be drawn as a wall mark."
+        )
+    }
+
+    /// A steep bounce IS found geometrically, but attributed to a wall, which
+    /// would snap its mark to the playfield border far from the seat.
+    @MainActor
+    func testASteepBumperHitDrawsAtTheSeatNotTheBorder() throws {
+        let scene = NativeAnalyticPolylineReplayScene(size: CGSize(width: 12, height: 8))
+        var renderedImpacts: [NativeAnalyticReplayImpact] = []
+        let center = CGPoint(x: 10, y: 23)
+        scene.replay(
+            NativeAnalyticReplayPlan(
+                polyline: [
+                    CGPoint(x: 2, y: 3),
+                    CGPoint(x: 10, y: 3),
+                    CGPoint(x: 0, y: 3)
+                ],
+                duration: 1,
+                bumperMarks: [1: NativeReplayBumperMark(seatID: 2, center: center, radius: 5)]
+            ),
+            callbacks: NativeAnalyticReplayCallbacks(
+                onImpact: { renderedImpacts.append($0) }
+            )
+        )
+
+        scene.update(10)
+        scene.update(10.6)
+
+        XCTAssertEqual(renderedImpacts.map(\.vertexIndex), [1])
+        XCTAssertNil(scene.childNode(withName: "//impact-edge"))
+        let strike = try XCTUnwrap(scene.childNode(withName: "//bumper-strike:2"))
+        XCTAssertEqual(strike.position.x, center.x, accuracy: 1e-6)
+        XCTAssertEqual(strike.position.y, center.y, accuracy: 1e-6)
+        XCTAssertTrue(
+            strike.children.allSatisfy { !($0 is SKLabelNode) },
+            "The strike must explain itself through shape and motion, never text."
+        )
+    }
+
+    /// A round contact has one normal, so it is never a corner, and its impulse
+    /// comes from that normal rather than from a wall axis.
+    @MainActor
+    func testABumperStrikeIsNeverACornerAndUsesTheContactNormal() {
+        let scene = NativeAnalyticPolylineReplayScene(size: CGSize(width: 40, height: 40))
+        var renderedImpacts: [NativeAnalyticReplayImpact] = []
+        // Contact normal points straight down from a centre directly above.
+        scene.replay(
+            NativeAnalyticReplayPlan(
+                polyline: [
+                    CGPoint(x: 0, y: 0),
+                    CGPoint(x: 10, y: 5),
+                    CGPoint(x: 21, y: 9)
+                ],
+                duration: 1,
+                bumperMarks: [
+                    1: NativeReplayBumperMark(
+                        seatID: 3,
+                        center: CGPoint(x: 10, y: 25),
+                        radius: 5
+                    )
+                ]
+            ),
+            callbacks: NativeAnalyticReplayCallbacks(
+                onImpact: { renderedImpacts.append($0) }
+            )
+        )
+        scene.update(10)
+        scene.update(10.6)
+
+        XCTAssertEqual(renderedImpacts.count, 1)
+        XCTAssertFalse(renderedImpacts[0].isCorner)
+        // incoming (10,5) normalized dotted with normal (0,-1) => 5/sqrt(125).
+        XCTAssertEqual(
+            renderedImpacts[0].wallNormalImpulseFraction,
+            5.0 / (125.0 as Double).squareRoot(),
+            accuracy: 1e-9
+        )
+    }
+
+    @MainActor
+    func testRepeatedStrikesOnOneSeatKeepASinglePulse() {
+        let scene = NativeAnalyticPolylineReplayScene(size: CGSize(width: 60, height: 60))
+        let center = CGPoint(x: 10, y: 30)
+        scene.replay(
+            NativeAnalyticReplayPlan(
+                polyline: [
+                    CGPoint(x: 0, y: 0),
+                    CGPoint(x: 10, y: 5),
+                    CGPoint(x: 21, y: 9),
+                    CGPoint(x: 31, y: 14)
+                ],
+                duration: 1,
+                bumperMarks: [
+                    1: NativeReplayBumperMark(seatID: 5, center: center, radius: 5),
+                    2: NativeReplayBumperMark(seatID: 5, center: center, radius: 5)
+                ]
+            )
+        )
+        scene.update(10)
+        scene.update(10.9)
+
+        let strikes = scene.children
+            .flatMap(\.children)
+            .filter { $0.name == "bumper-strike:5" }
+        XCTAssertEqual(strikes.count, 1, "A re-strike restarts the pulse rather than stacking.")
+    }
+
+    @MainActor
+    func testCancellingAReplayRemovesInFlightBumperStrikes() {
+        let scene = NativeAnalyticPolylineReplayScene(size: CGSize(width: 40, height: 40))
+        scene.replay(
+            NativeAnalyticReplayPlan(
+                polyline: [
+                    CGPoint(x: 0, y: 0),
+                    CGPoint(x: 10, y: 5),
+                    CGPoint(x: 21, y: 9)
+                ],
+                duration: 1,
+                bumperMarks: [
+                    1: NativeReplayBumperMark(
+                        seatID: 9,
+                        center: CGPoint(x: 10, y: 25),
+                        radius: 5
+                    )
+                ]
+            )
+        )
+        scene.update(10)
+        scene.update(10.6)
+        XCTAssertNotNil(scene.childNode(withName: "//bumper-strike:9"))
+
+        scene.cancelReplay()
+        XCTAssertNil(scene.childNode(withName: "//bumper-strike:9"))
+    }
+
+    @MainActor
+    func testIncreasedContrastThickensTheStrikeWithoutChangingItsHue() throws {
+        func strokeWidths(increasedContrast: Bool) throws -> [CGFloat] {
+            let scene = NativeAnalyticPolylineReplayScene(size: CGSize(width: 40, height: 40))
+            scene.replay(
+                NativeAnalyticReplayPlan(
+                    polyline: [
+                        CGPoint(x: 0, y: 0),
+                        CGPoint(x: 10, y: 5),
+                        CGPoint(x: 21, y: 9)
+                    ],
+                    duration: 1,
+                    bumperMarks: [
+                        1: NativeReplayBumperMark(
+                            seatID: 1,
+                            center: CGPoint(x: 10, y: 25),
+                            radius: 5
+                        )
+                    ],
+                    style: NativeReplayVisualStyle(
+                        impactColor: .systemOrange,
+                        increasesContrast: increasedContrast
+                    )
+                )
+            )
+            scene.update(10)
+            scene.update(10.6)
+            let strike = try XCTUnwrap(scene.childNode(withName: "//bumper-strike:1"))
+            return strike.children.compactMap { ($0 as? SKShapeNode)?.lineWidth }
+        }
+
+        let plain = try strokeWidths(increasedContrast: false)
+        let contrasted = try strokeWidths(increasedContrast: true)
+        XCTAssertEqual(plain.count, contrasted.count)
+        XCTAssertFalse(plain.isEmpty)
+        for (plainWidth, contrastedWidth) in zip(plain, contrasted) {
+            XCTAssertGreaterThan(contrastedWidth, plainWidth)
+        }
+    }
+
+    @MainActor
+    func testAPlanWithoutBumperMarksIsUnchanged() {
+        let scene = NativeAnalyticPolylineReplayScene(size: CGSize(width: 12, height: 8))
+        var renderedImpacts: [NativeAnalyticReplayImpact] = []
+        scene.replay(
+            NativeAnalyticReplayPlan(
+                polyline: [
+                    CGPoint(x: 2, y: 3),
+                    CGPoint(x: 10, y: 3),
+                    CGPoint(x: 0, y: 3)
+                ],
+                duration: 1
+            ),
+            callbacks: NativeAnalyticReplayCallbacks(
+                onImpact: { renderedImpacts.append($0) }
+            )
+        )
+        scene.update(10)
+        scene.update(10.6)
+
+        XCTAssertEqual(renderedImpacts.map(\.vertexIndex), [1])
+        XCTAssertNotNil(scene.childNode(withName: "//impact-edge"))
+        XCTAssertTrue(renderedImpacts.allSatisfy { $0.isCorner == false })
+    }
+
     @MainActor
     func testFairnessDeflectorGetsDistinctRenderedImpactAndWallTransformation() throws {
         let scene = NativeAnalyticPolylineReplayScene(

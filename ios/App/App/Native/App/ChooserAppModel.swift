@@ -1081,6 +1081,15 @@ public final class ChooserAppModel {
         )
     }
 
+    /// Bumper contacts along a run's path, for presentation.
+    ///
+    /// Resolves against `pinballBumperField(for:)` — the same field the marcher
+    /// collided with — so a lit ring is provably the circle the ball hit.
+    func pinballBumperContacts(for run: NativePinballRun) -> [PinballBumperContact] {
+        guard let partition = pinballPartition() else { return [] }
+        return run.result.trajectory.bumperContacts(in: pinballBumperField(for: partition))
+    }
+
     public func handleSceneBecameInactive() {
         // Deliberately does NOT clear `presentedOnboarding`, which is the one
         // exception to this method's "wipe transient state" contract. The

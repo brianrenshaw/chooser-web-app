@@ -496,6 +496,18 @@ public struct PinballModeView: View {
                             run: run,
                             presentation: .running,
                             colorTheme: model.colorTheme,
+                            bumperMarks: Dictionary(
+                                uniqueKeysWithValues: model.pinballBumperContacts(for: run).map {
+                                    (
+                                        $0.vertexIndex,
+                                        NativeReplayBumperMark(
+                                            seatID: $0.seatID,
+                                            center: $0.center,
+                                            radius: $0.radius
+                                        )
+                                    )
+                                }
+                            ),
                             onImpact: { runID, impact in
                                 model.handlePinballRenderedImpact(
                                     runID: runID,
@@ -1536,6 +1548,15 @@ enum NativePinballReplayPresentation: Hashable {
     var dependsOnReduceMotion: Bool { settlesAtEndpoint }
 }
 
+/// Accessibility preferences the rendered replay depends on. A change to any
+/// of them has to rebuild the scene, the same way a motion preference does.
+private struct NativePinballReplayAppearanceFlags: Equatable {
+    let reduceMotion: Bool
+    let increasedContrast: Bool
+    let reduceTransparency: Bool
+    let differentiateWithoutColor: Bool
+}
+
 private struct NativePinballReplayIdentity: Hashable {
     let runID: UUID
     let presentation: NativePinballReplayPresentation
@@ -1547,10 +1568,25 @@ private struct NativePinballSpriteReplay: UIViewRepresentable {
     let run: NativePinballRun
     let presentation: NativePinballReplayPresentation
     let colorTheme: ChooserColorTheme
+    /// Seat rings the marcher recorded, keyed by polyline vertex index. The
+    /// scene cannot derive these from the points alone.
+    var bumperMarks: [Int: NativeReplayBumperMark] = [:]
     var onImpact: (_ runID: UUID, _ impact: NativeAnalyticReplayImpact) -> Void = { _, _ in }
     var onEndpointCompression: (_ runID: UUID) -> Void = { _ in }
     var onFinished: (_ runID: UUID) -> Void = { _ in }
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @Environment(\.accessibilityDifferentiateWithoutColor) private var differentiateWithoutColor
+    @Environment(\.colorSchemeContrast) private var colorSchemeContrast
+
+    private var appearanceFlags: NativePinballReplayAppearanceFlags {
+        NativePinballReplayAppearanceFlags(
+            reduceMotion: reduceMotion,
+            increasedContrast: colorSchemeContrast == .increased,
+            reduceTransparency: reduceTransparency,
+            differentiateWithoutColor: differentiateWithoutColor
+        )
+    }
 
     private var identity: NativePinballReplayIdentity {
         NativePinballReplayIdentity(
@@ -1585,8 +1621,10 @@ private struct NativePinballSpriteReplay: UIViewRepresentable {
         let identityChanged = context.coordinator.identity != identity
         let relevantMotionPreferenceChanged = presentation.dependsOnReduceMotion &&
             context.coordinator.reduceMotion != reduceMotion
+        let appearanceChanged = context.coordinator.appearanceFlags != appearanceFlags
         context.coordinator.reduceMotion = reduceMotion
-        guard identityChanged || relevantMotionPreferenceChanged else { return }
+        context.coordinator.appearanceFlags = appearanceFlags
+        guard identityChanged || relevantMotionPreferenceChanged || appearanceChanged else { return }
         if let scene = context.coordinator.scene {
             replay(in: scene, coordinator: context.coordinator)
         }
@@ -1600,6 +1638,7 @@ private struct NativePinballSpriteReplay: UIViewRepresentable {
     private func replay(in scene: NativeAnalyticPolylineReplayScene, coordinator: Coordinator) {
         coordinator.identity = identity
         coordinator.reduceMotion = reduceMotion
+        coordinator.appearanceFlags = appearanceFlags
         let isFinal = presentation.isFinal
         let motionColor = UIColor(colorTheme.pinballTailColor)
         let ballColor = UIColor(colorTheme.pinballColor)
@@ -1613,6 +1652,7 @@ private struct NativePinballSpriteReplay: UIViewRepresentable {
             fairnessDeflectorVertexIndex: isFinal
                 ? nil
                 : run.result.fairnessDeflectorVertexIndex,
+            bumperMarks: isFinal ? [:] : bumperMarks,
             regions: [],
             winnerFlashes: [],
             style: NativeReplayVisualStyle(
@@ -1628,7 +1668,10 @@ private struct NativePinballSpriteReplay: UIViewRepresentable {
                 cursorRadius: 15,
                 showsGuide: false,
                 settlesAtEndpoint: presentation.settlesAtEndpoint && !reduceMotion,
-                reducesMotion: reduceMotion
+                reducesMotion: reduceMotion,
+                increasesContrast: colorSchemeContrast == .increased,
+                reducesTransparency: reduceTransparency,
+                differentiatesWithoutColor: differentiateWithoutColor
             )
         )
         scene.replay(
@@ -1667,6 +1710,7 @@ private struct NativePinballSpriteReplay: UIViewRepresentable {
     final class Coordinator {
         var scene: NativeAnalyticPolylineReplayScene?
         var reduceMotion = false
+        var appearanceFlags: NativePinballReplayAppearanceFlags?
         var identity: NativePinballReplayIdentity?
         var onImpact: (_ runID: UUID, _ impact: NativeAnalyticReplayImpact) -> Void = { _, _ in }
         var onEndpointCompression: (_ runID: UUID) -> Void = { _ in }

@@ -291,3 +291,56 @@ public extension PinballSeatTokenSizing {
         return true
     }
 }
+
+/// One recorded bumper contact, resolved back to the seat ring it struck.
+///
+/// The marcher already knows which bumper it hit; this recovers that from the
+/// trajectory so presentation layers never have to re-derive contact identity
+/// from the geometry. Deriving it is not merely redundant but wrong: a glancing
+/// bounce preserves both direction-component signs and a steep one is
+/// indistinguishable from a wall.
+public struct PinballBumperContact: Equatable, Sendable {
+    /// Index into `PinballTrajectory.points`.
+    public let vertexIndex: Int
+    public let seatID: Int
+    /// The drawn ring's center, in analytic playfield coordinates.
+    public let center: CGPoint
+    /// The drawn ring's radius, not the ball-inflated collision radius.
+    public let radius: CGFloat
+
+    public init(vertexIndex: Int, seatID: Int, center: CGPoint, radius: CGFloat) {
+        self.vertexIndex = vertexIndex
+        self.seatID = seatID
+        self.center = center
+        self.radius = radius
+    }
+}
+
+public extension PinballTrajectory {
+    /// Every bumper contact along this path, in travel order.
+    ///
+    /// Reads `vertexKinds` through `vertexKind(atPointIndex:)` rather than by
+    /// direct subscript. That accessor's bounds guard is what lets a
+    /// bumper-free trajectory — where `vertexKinds` is legitimately empty —
+    /// return no contacts instead of trapping.
+    func bumperContacts(in field: PinballBumperField) -> [PinballBumperContact] {
+        guard !field.isEmpty else { return [] }
+        let points = points
+        guard points.count > 2 else { return [] }
+
+        var contacts: [PinballBumperContact] = []
+        for index in 1..<(points.count - 1) {
+            guard let seatID = vertexKind(atPointIndex: index)?.bumperSeatID,
+                  let bumper = field.bumpers.first(where: { $0.seatID == seatID }) else { continue }
+            contacts.append(
+                PinballBumperContact(
+                    vertexIndex: index,
+                    seatID: seatID,
+                    center: bumper.center,
+                    radius: bumper.radius
+                )
+            )
+        }
+        return contacts
+    }
+}

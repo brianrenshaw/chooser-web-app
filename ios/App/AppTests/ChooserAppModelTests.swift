@@ -621,6 +621,52 @@ final class ChooserAppModelTests: XCTestCase {
         coordinator.stopAll()
     }
 
+    /// You see every bounce; you feel a readable subset.
+    ///
+    /// Haptics are deliberately thinned by `pinballCollisionMinimumSpacing` so
+    /// clustered bounces stay distinct in the Taptic Engine. Lighting is not,
+    /// because a ring that stays dark makes the ball look like it turned for no
+    /// reason. This pins that asymmetry as an executable contract.
+    func testEveryBumperVertexIsLitEvenWhenItsHapticIsThinned() throws {
+        let feedback = RecordingFeedbackCoordinator()
+        let model = makePinballModel(feedback: feedback)
+        model.startPinball(reduceMotion: false)
+
+        guard case .running(let run) = model.pinballPhase else {
+            return XCTFail("Expected an active Pinball replay")
+        }
+
+        let trajectory = run.result.trajectory
+        let litVertices = Set(model.pinballBumperContacts(for: run).map(\.vertexIndex))
+
+        // Every lit vertex is one the marcher actually recorded as a bumper.
+        for vertexIndex in litVertices {
+            XCTAssertNotNil(
+                trajectory.vertexKind(atPointIndex: vertexIndex)?.bumperSeatID,
+                "Vertex \(vertexIndex) was lit but is not a recorded seat contact."
+            )
+        }
+
+        // Nothing the haptic table kept can be missing from the lit set.
+        let feltBumperVertices = Set(
+            ChooserAppModel.pinballCollisionFeedbackEvents(for: run)
+                .map(\.vertexIndex)
+                .filter { trajectory.vertexKind(atPointIndex: $0)?.bumperSeatID != nil }
+        )
+        XCTAssertTrue(
+            feltBumperVertices.isSubset(of: litVertices),
+            "A bumper you can feel must also be one you can see."
+        )
+
+        // And the lit set is the complete recorded set, thinning or not.
+        let recordedBumperVertices = Set(
+            (0..<trajectory.points.count).filter {
+                trajectory.vertexKind(atPointIndex: $0)?.bumperSeatID != nil
+            }
+        )
+        XCTAssertEqual(litVertices, recordedBumperVertices)
+    }
+
     private func makePinballModel(
         feedback: RecordingFeedbackCoordinator
     ) -> ChooserAppModel {
