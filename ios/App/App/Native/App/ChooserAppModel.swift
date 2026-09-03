@@ -854,7 +854,8 @@ public final class ChooserAppModel {
             let partition = try makePinballPartition()
             let result = try PinballRoundResolver.secureFlickRound(
                 partition: partition,
-                intent: flickIntent
+                intent: flickIntent,
+                bumpers: pinballBumperField(for: partition)
             )
             let duration = try PinballFlickLaunchPolicy.flightDuration(
                 forSpeed: flickIntent.speed
@@ -893,7 +894,8 @@ public final class ChooserAppModel {
             let result = try PinballRoundResolver.flickRound(
                 partition: partition,
                 intent: intent,
-                using: &random
+                using: &random,
+                bumpers: pinballBumperField(for: partition)
             )
             try beginPinballRun(
                 result: result,
@@ -1051,11 +1053,31 @@ public final class ChooserAppModel {
         )
     }
 
+    /// The settled seat token layout.
+    ///
+    /// Bumper aware: seats shrink when they would otherwise leave the ball no
+    /// way between adjacent rings. Both the drawn chit and its bumper come from
+    /// this one layout, so the artwork and the physics can never disagree.
     public func pinballSeatTokenLayout() -> PinballSeatTokenLayout? {
         guard let partition = pinballPartition() else { return nil }
-        return PinballSeatTokenSizing.layout(
+        return PinballSeatTokenSizing.bumperAwareLayout(
             for: partition,
-            in: pinballPlayfieldSize
+            in: pinballPlayfieldSize,
+            ballRadius: NativePinballReplayMetrics.ballDiameter / 2
+        )
+    }
+
+    /// The bumper field for the current seats, or an empty field when the board
+    /// is not laid out yet.
+    func pinballBumperField(for partition: PinballRadialPartition) -> PinballBumperField {
+        guard let layout = PinballSeatTokenSizing.bumperAwareLayout(
+            for: partition,
+            in: pinballPlayfieldSize,
+            ballRadius: NativePinballReplayMetrics.ballDiameter / 2
+        ) else { return .empty }
+        return PinballBumperField(
+            from: layout,
+            ballRadius: NativePinballReplayMetrics.ballDiameter / 2
         )
     }
 

@@ -25,6 +25,7 @@ enum PinballSpecularFlickResolver {
         intent: PinballFlickIntent,
         using random: inout R,
         maximumSegments: Int,
+        bumpers: PinballBumperField = .empty,
         narrowAttempts: Int = narrowCandidateLimit,
         wideAttempts: Int = wideCandidateLimit
     ) throws -> PinballRoundResult {
@@ -66,6 +67,7 @@ enum PinballSpecularFlickResolver {
         let naturalTrajectory = try PinballBilliards.trajectory(
             for: naturalLaunch,
             in: partition.bounds,
+            bumpers: bumpers,
             maximumSegments: maximumSegments
         )
         let naturalRegion = try partition.region(containing: naturalTrajectory.endPoint)
@@ -74,6 +76,22 @@ enum PinballSpecularFlickResolver {
                 trajectory: naturalTrajectory,
                 winningRegion: naturalRegion,
                 fairnessDeflectorVertexIndex: nil
+            )
+        }
+
+        // With obstacles present the rectangle's reflection lattice no longer
+        // predicts where a ray lands, so the closed-form inverse below cannot be
+        // used. Search instead, and verify every candidate against the polyline
+        // that will actually be rendered.
+        if !bumpers.isEmpty {
+            return try bumperDeflectedResult(
+                releasePoint: releasePoint,
+                committedDirection: committedDirection,
+                totalDistance: naturalLaunch.distance,
+                selectedRegion: selectedRegion,
+                partition: partition,
+                bumpers: bumpers,
+                maximumSegments: maximumSegments
             )
         }
 
@@ -107,6 +125,238 @@ enum PinballSpecularFlickResolver {
             partition: partition,
             maximumSegments: maximumSegments
         )
+    }
+
+    // MARK: - Bumper rounds
+
+    /// Directions tried at the deflecting wall. 0.25° steps over the inward
+    /// half-plane; dense enough that a region covering 1/N of the board is hit
+    /// many times over, which is what keeps the fail-closed path from becoming
+    /// region dependent.
+    private static let bumperSweepSteps = 1_440
+
+    /// Builds a round that reaches the already-selected region through a bumper
+    /// field.
+    ///
+    /// The disclosed mechanism is unchanged: the committed release point and
+    /// flick direction are preserved exactly, ordinary bounces stay specular,
+    /// and exactly one wall deflects. What changes is how that wall's outgoing
+    /// direction is found. A rectangle's mirror images make the bumper-free case
+    /// solvable in closed form; circles have no such lattice, so this sweeps
+    /// candidate directions, marches each one, and accepts only a candidate
+    /// whose **computed endpoint** already lies in the selected region. The
+    /// winner is therefore verified against the exact path that will be
+    /// rendered, never inferred.
+    private static func bumperDeflectedResult(
+        releasePoint: CGPoint,
+        committedDirection: CGVector,
+        totalDistance: CGFloat,
+        selectedRegion: PinballRadialRegion,
+        partition: PinballRadialPartition,
+        bumpers: PinballBumperField,
+        maximumSegments: Int
+    ) throws -> PinballRoundResult {
+        // Travel the committed flick until the first WALL. Bumpers struck on the
+        // way are ordinary specular bounces, so the deflection stays on a wall
+        // where the authored flex artwork belongs.
+        let prefix = try marchToFirstWall(
+            from: releasePoint,
+            direction: committedDirection,
+            limit: totalDistance,
+            bounds: partition.bounds,
+            bumpers: bumpers,
+            maximumSegments: maximumSegments
+        )
+
+        guard let prefix, prefix.travelled < totalDistance else {
+            throw PinballMathError.specularTrajectoryUnavailable
+        }
+
+        let suffixDistance = totalDistance - prefix.travelled
+        let naturalOutgoing = PinballBumperGeometry.reflect(
+            prefix.incoming,
+            about: prefix.wallNormal
+        )
+
+        var best: (score: CGFloat, trajectory: PinballTrajectory)?
+
+        for step in 0..<bumperSweepSteps {
+            let angle = CGFloat(step) * 2 * .pi / CGFloat(bumperSweepSteps)
+            let candidate = CGVector(dx: cos(angle), dy: sin(angle))
+            // Must leave the wall, not burrow into it.
+            let inward = candidate.dx * prefix.wallNormal.dx + candidate.dy * prefix.wallNormal.dy
+            guard inward > 1e-4 else { continue }
+
+            guard let launch = try? PinballLaunch(
+                start: prefix.contact,
+                direction: candidate,
+                distance: suffixDistance
+            ) else { continue }
+            guard let trajectory = try? PinballBilliards.trajectory(
+                for: launch,
+                in: partition.bounds,
+                bumpers: bumpers,
+                maximumSegments: maximumSegments
+            ) else { continue }
+            guard let region = try? partition.region(containing: trajectory.endPoint),
+                  region.seat.seatID == selectedRegion.seat.seatID else { continue }
+
+            // Prefer the least surprising deflection from the natural specular
+            // reflection, matching the aesthetic rule the closed-form solver uses.
+            let dot = max(-1, min(1, candidate.dx * naturalOutgoing.dx + candidate.dy * naturalOutgoing.dy))
+            let score = acos(dot)
+            if best == nil || score < best!.score {
+                best = (score, trajectory)
+            }
+        }
+
+        guard let best else {
+            // Fail closed, exactly as the bumper-free path does. Never redraw a
+            // winner to make a path easier to find.
+            throw PinballMathError.specularTrajectoryUnavailable
+        }
+
+        var segments = prefix.segments
+        var vertexKinds = prefix.vertexKinds
+        let deflectorVertexIndex = segments.count
+
+        for segment in best.trajectory.segments {
+            segments.append(
+                PinballPathSegment(
+                    start: segment.start,
+                    end: segment.end,
+                    startDistance: segment.startDistance + prefix.travelled,
+                    endDistance: segment.endDistance + prefix.travelled
+                )
+            )
+        }
+        // The deflecting wall itself, then the suffix's own ordinary vertices.
+        vertexKinds.append(.wall(normal: prefix.wallNormal))
+        vertexKinds.append(contentsOf: best.trajectory.vertexKinds)
+
+        let launch = try PinballLaunch(
+            start: releasePoint,
+            direction: committedDirection,
+            distance: totalDistance
+        )
+        let trajectory = PinballTrajectory(
+            bounds: partition.bounds,
+            launch: launch,
+            segments: segments,
+            endPoint: best.trajectory.endPoint,
+            vertexKinds: vertexKinds
+        )
+
+        // Same hard verification the closed-form path performs: the displayed
+        // endpoint must own the result, or the round throws.
+        let endpointRegion = try partition.region(containing: trajectory.endPoint)
+        guard endpointRegion.seat.seatID == selectedRegion.seat.seatID else {
+            throw PinballMathError.specularTrajectoryUnavailable
+        }
+
+        return PinballRoundResult(
+            trajectory: trajectory,
+            winningRegion: selectedRegion,
+            fairnessDeflectorVertexIndex: deflectorVertexIndex
+        )
+    }
+
+    private struct BumperPrefix {
+        let segments: [PinballPathSegment]
+        let vertexKinds: [PinballPathVertexKind]
+        let contact: CGPoint
+        let incoming: CGVector
+        let wallNormal: CGVector
+        let travelled: CGFloat
+    }
+
+    /// Marches the committed flick until it first touches a wall, bouncing off
+    /// any bumpers on the way. Returns nil when no wall is reached within the
+    /// launch distance.
+    private static func marchToFirstWall(
+        from start: CGPoint,
+        direction: CGVector,
+        limit: CGFloat,
+        bounds: CGRect,
+        bumpers: PinballBumperField,
+        maximumSegments: Int
+    ) throws -> BumperPrefix? {
+        let epsilon = max(1e-7, max(bounds.width, bounds.height) * 1e-9)
+        var position = start
+        var heading = direction
+        var travelled: CGFloat = 0
+        var segments: [PinballPathSegment] = []
+        var vertexKinds: [PinballPathVertexKind] = []
+
+        while travelled < limit {
+            let remaining = limit - travelled
+            let wall = PinballBumperGeometry.nearestWallHit(
+                from: position,
+                direction: heading,
+                bounds: bounds,
+                maximumDistance: remaining,
+                minimumDistance: epsilon
+            )
+            let bumper = PinballBumperGeometry.nearestBumperHit(
+                from: position,
+                direction: heading,
+                field: bumpers,
+                maximumDistance: remaining,
+                minimumDistance: epsilon
+            )
+
+            let wallDistance = wall?.distance ?? .infinity
+            let bumperDistance = bumper?.distance ?? .infinity
+
+            guard min(wallDistance, bumperDistance).isFinite else { return nil }
+            guard segments.count + 1 <= maximumSegments else {
+                throw PinballMathError.reflectionLimitExceeded(maximumSegments)
+            }
+
+            if bumperDistance < wallDistance, let bumper {
+                let contact = CGPoint(
+                    x: position.x + heading.dx * bumperDistance,
+                    y: position.y + heading.dy * bumperDistance
+                )
+                segments.append(
+                    PinballPathSegment(
+                        start: position,
+                        end: contact,
+                        startDistance: travelled,
+                        endDistance: travelled + bumperDistance
+                    )
+                )
+                vertexKinds.append(.bumper(seatID: bumper.bumper.seatID, normal: bumper.normal))
+                heading = PinballBumperGeometry.reflect(heading, about: bumper.normal)
+                position = contact
+                travelled += bumperDistance
+                continue
+            }
+
+            guard let wall else { return nil }
+            let contact = CGPoint(
+                x: position.x + heading.dx * wallDistance,
+                y: position.y + heading.dy * wallDistance
+            )
+            segments.append(
+                PinballPathSegment(
+                    start: position,
+                    end: contact,
+                    startDistance: travelled,
+                    endDistance: travelled + wallDistance
+                )
+            )
+            return BumperPrefix(
+                segments: segments,
+                vertexKinds: vertexKinds,
+                contact: contact,
+                incoming: heading,
+                wallNormal: wall.normal,
+                travelled: travelled + wallDistance
+            )
+        }
+
+        return nil
     }
 
     private struct FirstWallContact {

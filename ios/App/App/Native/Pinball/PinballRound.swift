@@ -80,13 +80,15 @@ public enum PinballRoundResolver {
         partition: PinballRadialPartition,
         intent: PinballFlickIntent,
         using random: inout R,
-        maximumSegments: Int = 10_000
+        maximumSegments: Int = 10_000,
+        bumpers: PinballBumperField = .empty
     ) throws -> PinballRoundResult {
         try PinballSpecularFlickResolver.resolve(
             partition: partition,
             intent: intent,
             using: &random,
-            maximumSegments: maximumSegments
+            maximumSegments: maximumSegments,
+            bumpers: bumpers
         )
     }
 
@@ -111,14 +113,16 @@ public enum PinballRoundResolver {
     public static func secureFlickRound(
         partition: PinballRadialPartition,
         intent: PinballFlickIntent,
-        maximumSegments: Int = 10_000
+        maximumSegments: Int = 10_000,
+        bumpers: PinballBumperField = .empty
     ) throws -> PinballRoundResult {
         var random = SecurePinballRandomSource()
         return try flickRound(
             partition: partition,
             intent: intent,
             using: &random,
-            maximumSegments: maximumSegments
+            maximumSegments: maximumSegments,
+            bumpers: bumpers
         )
     }
 }

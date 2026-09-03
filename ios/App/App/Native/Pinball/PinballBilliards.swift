@@ -45,7 +45,8 @@ public struct PinballPathSegment: Equatable, Sendable {
     public var length: CGFloat { endDistance - startDistance }
 }
 
-/// Exact piecewise-linear analytic motion inside a rectangle.
+/// Exact piecewise-linear analytic motion inside a rectangle, optionally
+/// containing circular bumpers.
 ///
 /// ``PinballBilliards`` produces a single-direction trajectory whose internal
 /// vertices are all genuine specular wall events. A user-directed fair round is
@@ -60,21 +61,58 @@ public struct PinballTrajectory: Equatable, Sendable {
     public let launch: PinballLaunch
     public let segments: [PinballPathSegment]
     public let endPoint: CGPoint
+    /// What each internal vertex is, parallel to `segments.dropLast()`.
+    ///
+    /// Empty for a bumper-free round, where every internal vertex is a wall by
+    /// construction. Populated whenever a bumper field is in play so playback
+    /// never has to guess a vertex's identity from its direction change.
+    public let vertexKinds: [PinballPathVertexKind]
+
+    public init(
+        bounds: CGRect,
+        launch: PinballLaunch,
+        segments: [PinballPathSegment],
+        endPoint: CGPoint,
+        vertexKinds: [PinballPathVertexKind] = []
+    ) {
+        self.bounds = bounds
+        self.launch = launch
+        self.segments = segments
+        self.endPoint = endPoint
+        self.vertexKinds = vertexKinds
+    }
 
     /// All drawable vertices, including start and final endpoint.
     public var points: [CGPoint] {
         guard let first = segments.first else { return [launch.start] }
         return [first.start] + segments.map(\.end)
     }
+
+    /// The vertex kind at an index into `points`, if it is a recorded internal
+    /// vertex. `points[0]` is the launch and the last point is the endpoint, so
+    /// only indices `1..<points.count-1` can have a kind.
+    public func vertexKind(atPointIndex index: Int) -> PinballPathVertexKind? {
+        let internalIndex = index - 1
+        guard internalIndex >= 0, internalIndex < vertexKinds.count else { return nil }
+        return vertexKinds[internalIndex]
+    }
 }
 
 /// Analytic billiards inside an axis-aligned rectangle.
 ///
-/// The implementation uses the standard "unfolded room" construction. Instead
-/// of integrating velocity in tiny time steps, it extends a straight ray across
-/// mirrored copies of the rectangle. A triangle-wave fold maps every point on
-/// that ray back into the original bounds. This yields a stable endpoint and
-/// exact wall events regardless of frame rate or device orientation.
+/// With no bumpers the implementation uses the standard "unfolded room"
+/// construction. Instead of integrating velocity in tiny time steps, it extends
+/// a straight ray across mirrored copies of the rectangle. A triangle-wave fold
+/// maps every point on that ray back into the original bounds. This yields a
+/// stable endpoint and exact wall events regardless of frame rate or device
+/// orientation, and computes the endpoint in O(1).
+///
+/// A circle has no reflection lattice, so a bumper field cannot use the fold.
+/// ``trajectory(for:in:bumpers:maximumSegments:)`` instead marches
+/// segment by segment, taking the nearer of a closed-form wall crossing and a
+/// closed-form ray/circle intersection. That is still analytic and still frame
+/// rate independent — there is no timestep, no force integration, and no
+/// mutable physics body — but the endpoint costs O(bounces) rather than O(1).
 public enum PinballBilliards {
     /// Returns only the final folded point and never allocates reflection data.
     /// This remains O(1), even for a very long path.
@@ -182,6 +220,132 @@ public enum PinballBilliards {
             launch: launch,
             segments: segments,
             endPoint: finalPoint
+        )
+    }
+
+    /// Builds the reflected path through a field of circular bumpers.
+    ///
+    /// Falls through to the unfolded rectangle solver when the field is empty,
+    /// so bumper-free rounds keep their exact previous behaviour and their O(1)
+    /// endpoint. With bumpers it marches: at each step take the nearer of a
+    /// closed-form wall crossing and a closed-form ray/circle intersection,
+    /// emit that segment, reflect, and continue. Every vertex is recorded with
+    /// its kind and contact normal so playback never has to infer them.
+    public static func trajectory(
+        for launch: PinballLaunch,
+        in bounds: CGRect,
+        bumpers: PinballBumperField,
+        maximumSegments: Int = 10_000
+    ) throws -> PinballTrajectory {
+        guard !bumpers.isEmpty else {
+            return try trajectory(for: launch, in: bounds, maximumSegments: maximumSegments)
+        }
+        try validate(launch: launch, bounds: bounds)
+        guard maximumSegments > 0 else {
+            throw PinballMathError.reflectionLimitExceeded(maximumSegments)
+        }
+
+        if launch.distance == 0 {
+            return PinballTrajectory(
+                bounds: bounds,
+                launch: launch,
+                segments: [],
+                endPoint: launch.start
+            )
+        }
+
+        // Scaled to the board so the epsilon means the same thing on any stage
+        // size. It keeps a contact from immediately re-detecting itself.
+        let epsilon = max(1e-7, max(bounds.width, bounds.height) * 1e-9)
+
+        var segments: [PinballPathSegment] = []
+        var vertexKinds: [PinballPathVertexKind] = []
+        var position = launch.start
+        var direction = launch.direction
+        var travelled: CGFloat = 0
+
+        while travelled < launch.distance {
+            let remaining = launch.distance - travelled
+            let wall = PinballBumperGeometry.nearestWallHit(
+                from: position,
+                direction: direction,
+                bounds: bounds,
+                maximumDistance: remaining,
+                minimumDistance: epsilon
+            )
+            let bumper = PinballBumperGeometry.nearestBumperHit(
+                from: position,
+                direction: direction,
+                field: bumpers,
+                maximumDistance: remaining,
+                minimumDistance: epsilon
+            )
+
+            let wallDistance = wall?.distance ?? .infinity
+            let bumperDistance = bumper?.distance ?? .infinity
+            let contactDistance = min(wallDistance, bumperDistance)
+
+            guard contactDistance.isFinite, contactDistance < remaining else {
+                // Nothing else in the way: run out the remaining distance.
+                let end = CGPoint(
+                    x: position.x + direction.dx * remaining,
+                    y: position.y + direction.dy * remaining
+                )
+                segments.append(
+                    PinballPathSegment(
+                        start: position,
+                        end: end,
+                        startDistance: travelled,
+                        endDistance: launch.distance
+                    )
+                )
+                position = end
+                travelled = launch.distance
+                break
+            }
+
+            guard segments.count + 1 <= maximumSegments else {
+                throw PinballMathError.reflectionLimitExceeded(maximumSegments)
+            }
+
+            let contact = CGPoint(
+                x: position.x + direction.dx * contactDistance,
+                y: position.y + direction.dy * contactDistance
+            )
+            segments.append(
+                PinballPathSegment(
+                    start: position,
+                    end: contact,
+                    startDistance: travelled,
+                    endDistance: travelled + contactDistance
+                )
+            )
+
+            let normal: CGVector
+            if bumperDistance < wallDistance, let bumper {
+                normal = bumper.normal
+                vertexKinds.append(.bumper(seatID: bumper.bumper.seatID, normal: normal))
+            } else if let wall {
+                normal = wall.normal
+                vertexKinds.append(.wall(normal: normal))
+            } else {
+                break
+            }
+
+            direction = PinballBumperGeometry.reflect(direction, about: normal)
+            position = contact
+            travelled += contactDistance
+        }
+
+        // The endpoint is the marched result, not a folded prediction: with
+        // obstacles present the two are not the same construction.
+        let finalPoint = segments.last?.end ?? launch.start
+        return PinballTrajectory(
+            bounds: bounds,
+            launch: launch,
+            segments: segments,
+            endPoint: finalPoint,
+            vertexKinds: vertexKinds
         )
     }
 
