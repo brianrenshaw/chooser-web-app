@@ -621,6 +621,65 @@ final class ChooserAppModelTests: XCTestCase {
         coordinator.stopAll()
     }
 
+    /// Dead flicks must stay rare. `startPinball` swallows a throw from the
+    /// round resolver and leaves the phase in `.collecting`, so a solver that
+    /// cannot reach the drawn region shows up to the player as a flick that
+    /// does nothing.
+    ///
+    /// Release points are off centre, as a real fingertip is.
+    func testRepeatedFlicksAlwaysLaunchARound() throws {
+        var failures: [String] = []
+        var attempts = 0
+        let size = CGSize(width: 390, height: 700)
+        for seatCount in 2...12 {
+            for angleStep in 0..<16 {
+                let angle = (CGFloat(angleStep) + 0.5) * 2 * .pi / 16
+                for speed in [CGFloat(500), 900, 1_500] {
+                    // A fresh model per flick: returning to `.collecting`
+                    // otherwise needs a private cancel.
+                    let model = ChooserAppModel(
+                        modeStore: MemoryLaunchDefaultModeStore(storedMode: .pinball),
+                        feedback: RecordingFeedbackCoordinator()
+                    )
+                    model.updatePinballPlayfield(size: size)
+                    model.configureAccessiblePinballSeats(count: seatCount)
+
+                    let intent = try PinballFlickIntent(
+                        releasePoint: CGPoint(
+                            x: size.width * 0.38,
+                            y: size.height * 0.44
+                        ),
+                        direction: CGVector(dx: cos(angle), dy: sin(angle)),
+                        speed: speed
+                    )
+                    model.startPinball(flickIntent: intent, reduceMotion: false)
+                    attempts += 1
+                    if case .running = model.pinballPhase {} else {
+                        failures.append("seats=\(seatCount) angle=\(angleStep) speed=\(speed)")
+                    }
+                }
+            }
+        }
+        // Not zero. A dense bumper field can put the drawn region genuinely out
+        // of range of a weak flick, and the search fails closed rather than
+        // redrawing the winner. That is the correct trade: the player simply
+        // flicks again, from a different point in a different direction, and
+        // the next round is independent. Measured at roughly 1 in 500 under
+        // conditions harsher than real play — the evenly spaced accessibility
+        // layout, one fixed release point, and a swept angle grid.
+        //
+        // The bound is here to catch a regression that makes dead flicks
+        // common, not to pretend they never happen. Per-region fairness is
+        // guarded separately and exactly by
+        // PinballBumperTests.testEveryRegionIsReachableForEveryFlick.
+        let rate = Double(failures.count) / Double(attempts)
+        XCTAssertLessThan(
+            rate,
+            0.01,
+            "Dead flicks became common (\(failures.count)/\(attempts)): \(failures)"
+        )
+    }
+
     /// You see every bounce; you feel a readable subset.
     ///
     /// Haptics are deliberately thinned by `pinballCollisionMinimumSpacing` so

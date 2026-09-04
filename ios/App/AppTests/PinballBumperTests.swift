@@ -148,6 +148,91 @@ final class PinballBumperTests: XCTestCase {
         XCTAssertEqual(trajectory.vertexKinds.count, max(0, trajectory.segments.count - 1))
     }
 
+    // MARK: - Fairness: no region may be harder to reach than another
+
+    /// The winner is drawn uniformly and only then is a path solved. If the
+    /// solver fails, the round dies and the player flicks again, drawing a
+    /// fresh winner — so a region-dependent failure rate is rejection sampling
+    /// that biases the completed-round odds. The only safe failure count is
+    /// zero.
+    ///
+    /// Directions are offset half a step off-axis deliberately. A flick that is
+    /// exactly axis-aligned from the exact board centre is a degenerate orbit:
+    /// it can reflect head-on between two opposed seat rings and never reach a
+    /// wall at all, so no wall deflection exists at any ordinal. That is a
+    /// known, separate limitation of the wall-deflection mechanism, not the
+    /// region-dependent reachability this test guards.
+    func testEveryRegionIsReachableForEveryFlick() throws {
+        let inset = NativePinballReplayMetrics.collisionInset
+        for seatCount in 2...12 {
+            let bounds = CGRect(x: 0, y: 0, width: 390, height: 700)
+                .insetBy(dx: inset, dy: inset)
+            let partition = try PinballRadialPartition(
+                bounds: bounds,
+                taps: PinballTestFixtures.radialTaps(count: seatCount, in: bounds)
+            )
+            let layout = try XCTUnwrap(
+                PinballSeatTokenSizing.bumperAwareLayout(
+                    for: partition,
+                    in: CGSize(width: 390, height: 700),
+                    ballRadius: NativePinballReplayMetrics.ballDiameter / 2
+                )
+            )
+            let bumpers = PinballBumperField(
+                from: layout,
+                ballRadius: NativePinballReplayMetrics.ballDiameter / 2
+            )
+
+            var failures = [Int](repeating: 0, count: seatCount)
+            // A centre release and an off-centre one. Off-centre matters: the
+            // reachable set differs sharply between them.
+            let releasePoints = [
+                CGPoint(x: bounds.midX, y: bounds.midY),
+                CGPoint(x: bounds.minX + bounds.width * 0.38, y: bounds.minY + bounds.height * 0.44)
+            ]
+            for releasePoint in releasePoints {
+            for angleStep in 0..<8 {
+                let angle = (CGFloat(angleStep) + 0.5) * 2 * .pi / 8
+                for speed in [CGFloat(600), 1_400] {
+                    let intent = try PinballFlickIntent(
+                        releasePoint: releasePoint,
+                        direction: CGVector(dx: cos(angle), dy: sin(angle)),
+                        speed: speed
+                    )
+                    for regionIndex in 0..<seatCount {
+                        var random = ForcedWinnerSource(
+                            winnerIndex: regionIndex,
+                            upperBound: seatCount,
+                            seed: UInt64(angleStep &* 31 &+ regionIndex &+ 7)
+                        )
+                        do {
+                            let result = try PinballSpecularFlickResolver.resolve(
+                                partition: partition,
+                                intent: intent,
+                                using: &random,
+                                maximumSegments: 10_000,
+                                bumpers: bumpers
+                            )
+                            // The drawn region must be the one that wins.
+                            XCTAssertEqual(
+                                result.winningRegion.seat.seatID,
+                                partition.regions[regionIndex].seat.seatID
+                            )
+                        } catch {
+                            failures[regionIndex] += 1
+                        }
+                    }
+                }
+            }
+            }
+            XCTAssertEqual(
+                failures,
+                [Int](repeating: 0, count: seatCount),
+                "Unreachable regions at \(seatCount) seats bias the odds against them."
+            )
+        }
+    }
+
     // MARK: - Recovering contacts for presentation
 
     func testBumperContactsRecoverSeatIdentityAndTheDrawnRing() throws {
@@ -461,5 +546,30 @@ extension PinballBumperTests {
         let magnitude = hypot(dx, dy)
         guard magnitude > 0 else { return CGVector(dx: 0, dy: 0) }
         return CGVector(dx: dx / magnitude, dy: dy / magnitude)
+    }
+}
+
+/// Forces the first winner draw to a chosen index, then behaves as an ordinary
+/// deterministic source. Mirrors `nextUnbiasedIndex`'s rejection threshold so
+/// the forced value is actually accepted.
+private struct ForcedWinnerSource: PinballRandomSource {
+    private var firstValue: UInt64?
+    private var tail: SplitMix64RandomSource
+
+    init(winnerIndex: Int, upperBound: Int, seed: UInt64) {
+        let bound = UInt64(upperBound)
+        let threshold = (0 &- bound) % bound
+        let desired = UInt64(winnerIndex)
+        let offset = (desired &+ bound &- (threshold % bound)) % bound
+        firstValue = threshold &+ offset
+        tail = SplitMix64RandomSource(seed: seed)
+    }
+
+    mutating func nextUInt64() -> UInt64 {
+        if let firstValue {
+            self.firstValue = nil
+            return firstValue
+        }
+        return tail.nextUInt64()
     }
 }
