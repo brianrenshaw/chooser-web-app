@@ -445,19 +445,74 @@ final class ChooserColorThemeTests: XCTestCase {
         )
     }
 
+    /// `scale: 1` is written out rather than left to the default. These are the
+    /// phone's authored numbers, and a defaulted call would keep passing while
+    /// silently pinning a value the app no longer ships on a larger board — the
+    /// assertion would survive the very change it exists to catch.
     func testBoardPieceGeometryUsesBroadBandsAndRestrainedWinnerScale() {
-        XCTAssertEqual(BoardPieceVisualMetrics.bandWidth(for: 100), 18, accuracy: 0.001)
-        XCTAssertEqual(BoardPieceVisualMetrics.bandWidth(for: 160), 20, accuracy: 0.001)
-        XCTAssertEqual(BoardPieceVisualMetrics.bandWidth(for: 176), 22, accuracy: 0.001)
-        XCTAssertEqual(BoardPieceVisualMetrics.bandWidth(for: 240), 22, accuracy: 0.001)
-        XCTAssertEqual(BoardPieceVisualMetrics.chitRimWidth(for: 50), 7, accuracy: 0.001)
-        XCTAssertEqual(BoardPieceVisualMetrics.chitRimWidth(for: 120), 9, accuracy: 0.001)
+        XCTAssertEqual(BoardPieceVisualMetrics.bandWidth(for: 100, scale: 1), 18, accuracy: 0.001)
+        XCTAssertEqual(BoardPieceVisualMetrics.bandWidth(for: 160, scale: 1), 20, accuracy: 0.001)
+        XCTAssertEqual(BoardPieceVisualMetrics.bandWidth(for: 176, scale: 1), 22, accuracy: 0.001)
+        XCTAssertEqual(BoardPieceVisualMetrics.bandWidth(for: 240, scale: 1), 22, accuracy: 0.001)
+        XCTAssertEqual(BoardPieceVisualMetrics.chitRimWidth(for: 50, scale: 1), 7, accuracy: 0.001)
+        XCTAssertEqual(BoardPieceVisualMetrics.chitRimWidth(for: 120, scale: 1), 9, accuracy: 0.001)
         XCTAssertEqual(BoardPieceVisualMetrics.ringTextureOpacity(from: 0.05), 0.0675, accuracy: 0.000_001)
         XCTAssertEqual(BoardPieceVisualMetrics.ringTextureOpacity(from: 0.10), 0.12, accuracy: 0.000_001)
         XCTAssertEqual(BoardPieceVisualMetrics.chitTextureOpacity(from: 0.05), 0.059, accuracy: 0.000_001)
         XCTAssertEqual(BoardPieceVisualMetrics.maximumScale(for: .winner), 1.06, accuracy: 0.001)
-        XCTAssertEqual(BoardPieceVisualMetrics.renderingOverflow(for: 44, emphasis: .resting), 12)
-        XCTAssertEqual(BoardPieceVisualMetrics.renderingOverflow(for: 176, emphasis: .winner), 20)
+        XCTAssertEqual(
+            BoardPieceVisualMetrics.renderingOverflow(for: 44, emphasis: .resting, scale: 1),
+            12
+        )
+        XCTAssertEqual(
+            BoardPieceVisualMetrics.renderingOverflow(for: 176, emphasis: .winner, scale: 1),
+            20
+        )
+    }
+
+    /// The scaled rows. The saturation was the bug, not the ratio: a fixed 22pt
+    /// band on a 296pt ring reads as a thin hoop rather than a game piece, so
+    /// the clamp bounds scale while `d * 0.125` does not.
+    func testBoardPieceGeometryScalesItsClampsWithTheBoard() {
+        XCTAssertEqual(BoardPieceVisualMetrics.bandWidth(for: 296, scale: 1.68), 36.96, accuracy: 0.001)
+        XCTAssertEqual(BoardPieceVisualMetrics.bandWidth(for: 176, scale: 1.68), 30.24, accuracy: 0.001)
+        XCTAssertEqual(BoardPieceVisualMetrics.chitRimWidth(for: 240, scale: 1.68), 15.12, accuracy: 0.001)
+        XCTAssertEqual(
+            BoardPieceVisualMetrics.renderingOverflow(for: 296, emphasis: .winner, scale: 1.68),
+            33.6,
+            accuracy: 0.001
+        )
+    }
+
+    /// The invariant the authored 12/20 anchors exist to satisfy. They are kept
+    /// and multiplied rather than derived from the shadow, because the slack
+    /// differs between them and any single formula that reproduces one misses
+    /// the others — so assert the property instead.
+    ///
+    /// The slack per emphasis, at any scale: resting 3, winner 2, and **pulsing
+    /// exactly 0** — its 7.5 radius plus 4.5 offset lands precisely on the 12pt
+    /// overflow. That is shipping 1.0 behaviour, not something scaling
+    /// introduced, and it is why this asserts coverage rather than coverage plus
+    /// a margin. An earlier version demanded 2 points of headroom and failed at
+    /// every scale including 1 — the test being wrong about the code, not the
+    /// code being wrong.
+    func testRenderingOverflowAlwaysCoversTheCompleteContactShadow() {
+        let emphases: [BoardPieceEmphasis] = [.resting, .pulsing(), .winner, .receded, .dimmed]
+        for emphasis in emphases {
+            for scale in stride(from: CGFloat(1), through: 2, by: 0.1) {
+                let shadow = BoardPieceVisualMetrics.shadowMetrics(for: emphasis, scale: scale)
+                let overflow = BoardPieceVisualMetrics.renderingOverflow(
+                    for: 176,
+                    emphasis: emphasis,
+                    scale: scale
+                )
+                XCTAssertGreaterThanOrEqual(
+                    overflow,
+                    shadow.radius + shadow.y - 0.001,
+                    "\(emphasis) at scale \(scale) would clip its own shadow"
+                )
+            }
+        }
     }
 
     func testDefaultAccessibilityAppearancePolicyPreservesBuild14Materials() {

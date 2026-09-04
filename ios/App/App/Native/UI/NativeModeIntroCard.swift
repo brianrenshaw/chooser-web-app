@@ -25,6 +25,8 @@ struct NativeModeIntroCard: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @AccessibilityFocusState private var isFocused: Bool
 
+    @Environment(\.boardChromeMetrics) private var chrome
+
     var body: some View {
         Group {
             if dynamicTypeSize.isAccessibilitySize {
@@ -46,7 +48,7 @@ struct NativeModeIntroCard: View {
             }
         }
         .padding(14)
-        .frame(maxWidth: 520)
+        .frame(maxWidth: chrome.introCardMaxWidth)
         .nativeBoardPanel(cornerRadius: 22)
         .shadow(
             color: .black.opacity(0.18 * (colorSchemeContrast == .increased ? 1.18 : 1)),

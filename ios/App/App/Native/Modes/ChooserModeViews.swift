@@ -156,6 +156,7 @@ public struct TapInModeView: View {
     @AccessibilityFocusState private var resultIsFocused: Bool
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.boardChromeMetrics) private var chrome
 
     public init(model: ChooserAppModel) {
         self.model = model
@@ -306,6 +307,7 @@ public struct TapInModeView: View {
                     HStack(spacing: 10) { tapInResultButtons }
                     VStack(spacing: 10) { tapInResultButtons }
                 }
+                .boardActionRowWidth(chrome.actionRowMaxWidth)
             } else if dynamicTypeSize.isAccessibilitySize {
                 VStack(spacing: 10) {
                     tapInPickButton
@@ -473,7 +475,7 @@ public struct PinballModeView: View {
     @Bindable var model: ChooserAppModel
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
-    @Environment(\.verticalSizeClass) private var verticalSizeClass
+    @Environment(\.boardChromeMetrics) private var chrome
     @AccessibilityFocusState private var resultIsFocused: Bool
     @State private var flickTracking: NativePinballGestureTracking?
     @State private var flickCoachStartedAt: Date?
@@ -487,6 +489,15 @@ public struct PinballModeView: View {
     public var body: some View {
         VStack(spacing: 0) {
             GeometryReader { geometry in
+                // Pinball plays on a letterboxed board, so its shape stays
+                // inside the family its fairness is proven for. Every phone
+                // gets its whole area back unchanged; only a board squarer
+                // than the reference is inset, and it is inset symmetrically
+                // by the outer frame below. The ZStack's own coordinate space
+                // is the letterboxed rect, so touches, seats, physics and
+                // drawing all agree without any offset arithmetic.
+                let playfield = PinballPlayfieldLetterbox
+                    .playfieldSize(fitting: geometry.size)
                 let tokenLayout = model.pinballSeatTokenLayout()
                 ZStack {
                     if let partition = model.pinballPartition() {
@@ -623,7 +634,7 @@ public struct PinballModeView: View {
                     if isCollecting, let flickTracking {
                         PinballDirectManipulationPreview(
                             tracking: flickTracking,
-                            playfieldSize: geometry.size,
+                            playfieldSize: playfield,
                             colorTheme: model.colorTheme
                         )
                         .zIndex(30)
@@ -650,7 +661,7 @@ public struct PinballModeView: View {
                             pinballSeatPosition(
                                 seat,
                                 layout: tokenLayout,
-                                in: geometry.size,
+                                in: playfield,
                                 diameter: diameter,
                                 emphasis: emphasis
                             )
@@ -674,9 +685,11 @@ public struct PinballModeView: View {
                         .allowsHitTesting(false)
                     }
                 }
+                .frame(width: playfield.width, height: playfield.height)
                 .clipped()
-                .onAppear { model.updatePinballPlayfield(size: geometry.size) }
-                .onChange(of: geometry.size) { _, size in model.updatePinballPlayfield(size: size) }
+                .frame(width: geometry.size.width, height: geometry.size.height)
+                .onAppear { model.updatePinballPlayfield(size: playfield) }
+                .onChange(of: playfield) { _, size in model.updatePinballPlayfield(size: size) }
                 .animation(
                     reduceMotion ? .linear(duration: 0.01) : .smooth(duration: 0.26),
                     value: model.pinballSeats
@@ -743,6 +756,7 @@ public struct PinballModeView: View {
                             HStack(spacing: 10) { pinballResultButtons }
                             VStack(spacing: 10) { pinballResultButtons }
                         }
+                        .boardActionRowWidth(chrome.actionRowMaxWidth)
                     }
                 }
                 .padding(.horizontal, 16)
@@ -752,7 +766,7 @@ public struct PinballModeView: View {
         // Keep the playfield geometry identical while collecting, running,
         // and revealing. Otherwise hiding the buttons expands GeometryReader
         // and correctly trips the model's rotation-safety cancellation.
-        .frame(height: verticalSizeClass == .compact ? 104 : 108, alignment: .top)
+        .frame(height: chrome.dockHeight, alignment: .top)
     }
 
     private var pinballDockHasControls: Bool {
@@ -964,9 +978,17 @@ private struct PinballFlickCoach: View {
                 guard let sample = timing.sample(at: elapsed) else { return }
 
                 let angle = -CGFloat.pi * 0.10
+                // Board content, so a fixed 52pt streak all but disappears on a
+                // large canvas. Scaled by the *visual* law rather than
+                // Pinball's linear one: this demonstrates a gesture, and the
+                // gesture thresholds it stands for are hand-sized and do not
+                // scale — a hint should grow enough to be seen, not enough to
+                // misrepresent the flick it is teaching.
+                let travel = PinballFlickCoachTimeline.travelDistance
+                    * BoardPieceVisualMetrics.boardScale(for: size)
                 let vector = CGVector(
-                    dx: cos(angle) * PinballFlickCoachTimeline.travelDistance,
-                    dy: sin(angle) * PinballFlickCoachTimeline.travelDistance
+                    dx: cos(angle) * travel,
+                    dy: sin(angle) * travel
                 )
                 let start = CGPoint(
                     x: size.width / 2 - vector.dx / 2,

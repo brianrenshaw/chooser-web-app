@@ -54,6 +54,7 @@ public struct NativeWelcomeCarousel: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.verticalSizeClass) private var verticalSizeClass
+    @Environment(\.boardChromeMetrics) private var chrome
 
     public init(
         copy: NativeOfflineInformationCopy,
@@ -79,7 +80,7 @@ public struct NativeWelcomeCarousel: View {
                 pages
                 footer
             }
-            .frame(maxWidth: 620)
+            .frame(maxWidth: chrome.readableWidth)
             .frame(maxWidth: .infinity)
             .safeAreaPadding(.horizontal)
         }

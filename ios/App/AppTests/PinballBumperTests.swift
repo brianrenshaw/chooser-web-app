@@ -5,7 +5,10 @@ import XCTest
 final class PinballBumperTests: XCTestCase {
     private let bounds = CGRect(x: 0, y: 0, width: 300, height: 600)
 
-    private func field(_ bumpers: [PinballBumper], ballRadius: CGFloat = 15) -> PinballBumperField {
+    private func field(
+        _ bumpers: [PinballBumper],
+        ballRadius: CGFloat = PinballBoardMetrics.referenceBallDiameter / 2
+    ) -> PinballBumperField {
         PinballBumperField(bumpers: bumpers, ballRadius: ballRadius)
     }
 
@@ -521,14 +524,19 @@ extension PinballBumperTests {
             bounds: bounds,
             taps: PinballTestFixtures.radialTaps(count: seatCount, in: bounds)
         )
+        // Derived rather than hard-coded. A literal 15 would keep asserting a
+        // fairness property about a bumper field production stopped building
+        // the moment the ball began scaling with the board — the assertion
+        // would still pass, about nothing.
+        let ballRadius = PinballBoardMetrics(playfieldSize: bounds.size).ballRadius
         let layout = try XCTUnwrap(
             PinballSeatTokenSizing.bumperAwareLayout(
                 for: partition,
                 in: bounds.size,
-                ballRadius: 15
+                ballRadius: ballRadius
             )
         )
-        return (partition, PinballBumperField(from: layout, ballRadius: 15))
+        return (partition, PinballBumperField(from: layout, ballRadius: ballRadius))
     }
 
     /// The load-bearing fairness test. The winner is drawn before any path
@@ -674,7 +682,7 @@ extension PinballBumperTests {
 /// Forces the first winner draw to a chosen index, then behaves as an ordinary
 /// deterministic source. Mirrors `nextUnbiasedIndex`'s rejection threshold so
 /// the forced value is actually accepted.
-private struct ForcedWinnerSource: PinballRandomSource {
+struct ForcedWinnerSource: PinballRandomSource {
     private var firstValue: UInt64?
     private var tail: SplitMix64RandomSource
 

@@ -152,13 +152,15 @@ final class TapInChooserCoreTests: XCTestCase {
 }
 
 final class ChooserVisualGeometryTests: XCTestCase {
+    /// `scale: 1` written out: a defaulted call would keep asserting these
+    /// numbers while the app shipped different ones on a larger board.
     func testTapInPreferredDiameterUsesTheLargerCalmRingSystem() {
-        XCTAssertEqual(TapInGridLayout.preferredRingDiameter(for: 0), 156)
-        XCTAssertEqual(TapInGridLayout.preferredRingDiameter(for: 5), 156)
-        XCTAssertEqual(TapInGridLayout.preferredRingDiameter(for: 6), 142)
-        XCTAssertEqual(TapInGridLayout.preferredRingDiameter(for: 10), 110)
-        XCTAssertEqual(TapInGridLayout.preferredRingDiameter(for: 20), 78)
-        XCTAssertEqual(TapInGridLayout.preferredRingDiameter(for: 50), 49)
+        XCTAssertEqual(TapInGridLayout.preferredRingDiameter(for: 0, scale: 1), 156)
+        XCTAssertEqual(TapInGridLayout.preferredRingDiameter(for: 5, scale: 1), 156)
+        XCTAssertEqual(TapInGridLayout.preferredRingDiameter(for: 6, scale: 1), 142)
+        XCTAssertEqual(TapInGridLayout.preferredRingDiameter(for: 10, scale: 1), 110)
+        XCTAssertEqual(TapInGridLayout.preferredRingDiameter(for: 20, scale: 1), 78)
+        XCTAssertEqual(TapInGridLayout.preferredRingDiameter(for: 50, scale: 1), 49)
     }
 
     func testEveryEdgeAndCornerContainsTheCompleteRenderedFootprint() {

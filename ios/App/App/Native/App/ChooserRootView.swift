@@ -122,6 +122,7 @@ public struct ChooserRootView: View {
                 .presentationSizing(.page)
                 .presentationDragIndicator(.visible)
                 .presentationBackground(model.colorTheme.visualTheme.surfaceGradient)
+                .boardChromeMetrics()
             }
         }
         .background {
@@ -139,6 +140,7 @@ public struct ChooserRootView: View {
         .environment(\.chooserColorTheme, model.colorTheme)
         .environment(\.chooserVisualTheme, model.colorTheme.visualTheme)
         .environment(\.colorScheme, model.colorTheme.preferredColorScheme)
+        .boardChromeMetrics()
         .tint(model.colorTheme.interactiveTextColor)
         .statusBarHidden(true)
         // `onDismiss` rather than a delay: a full screen cover presented while
@@ -172,6 +174,7 @@ public struct ChooserRootView: View {
             .presentationBackground(model.colorTheme.visualTheme.surfaceGradient)
             .presentationDragIndicator(.visible)
             .presentationSizing(.form)
+            .boardChromeMetrics()
         }
         .alert(item: $model.confirmation, content: confirmationAlert)
         .onOpenURL { url in
