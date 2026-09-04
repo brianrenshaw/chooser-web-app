@@ -17,7 +17,7 @@ struct NativeWhatsNewCopy: Sendable {
     static let current = NativeWhatsNewCopy(
         release: OnboardingMoment.currentWhatsNewRelease,
         title: "What's new",
-        lead: "Who's First? now plays on iPad, and Pinball got fairer.",
+        lead: "Who's First? now plays on iPad, and Pinball plays more like the real thing.",
         items: [
             (
                 "ipad.and.iphone",
@@ -27,12 +27,12 @@ struct NativeWhatsNewCopy: Sendable {
             (
                 "circle.hexagongrid.fill",
                 "Seat rings light up",
-                "In Pinball, a seat ring now lights the moment the ball strikes it, so you can follow the path by feel and eye together."
+                "A seat ring now lights the moment the ball strikes it, so you can follow the whole path by eye."
             ),
             (
-                "equal.circle.fill",
-                "Every seat reachable",
-                "A gentle flick used to leave some seats out of reach, which quietly cost them turns. Now the ball can kick off a seat ring as well as a wall, so every seat keeps exactly the same chance."
+                "arrow.triangle.branch",
+                "Rings play like bumpers",
+                "The rings are real obstacles on the table. The ball hits them, they light, and it comes off them the way it does off a bumper in an actual pinball machine."
             )
         ]
     )

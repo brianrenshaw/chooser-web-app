@@ -524,23 +524,45 @@ public struct PinballModeView: View {
                         )
                     }
 
-                    if case .running(let run) = model.pinballPhase {
+                    // One view for the whole run, not one per phase.
+                    //
+                    // These used to be three branches — running, revealing,
+                    // revealed — each carrying `presentation` in its SwiftUI
+                    // `.id`. That tore the SKView down and rebuilt it twice as
+                    // a round ended, and because the view is transparent the
+                    // trail and ball vanished for a frame each time. On a phone
+                    // it is a blink; on an iPad board it reads as the screen
+                    // flashing a couple of times just as the ball stops.
+                    //
+                    // The representable was always built to handle this in
+                    // place: `updateUIView` re-runs the replay on the existing
+                    // scene when its identity changes. Only the view identity
+                    // has to stay stable for that path to be reached, so it is
+                    // keyed on the run and the theme — never the presentation.
+                    if let replay = pinballReplayState {
                         NativePinballSpriteReplay(
-                            run: run,
-                            presentation: .running,
+                            run: replay.run,
+                            presentation: replay.presentation,
                             colorTheme: model.colorTheme,
-                            bumperMarks: Dictionary(
-                                uniqueKeysWithValues: model.pinballBumperContacts(for: run).map {
-                                    (
-                                        $0.vertexIndex,
-                                        NativeReplayBumperMark(
-                                            seatID: $0.seatID,
-                                            center: $0.center,
-                                            radius: $0.radius
-                                        )
-                                    )
-                                }
-                            ),
+                            // Marks are only consumed while the ball is moving,
+                            // and building them is real work, so the final
+                            // static frame does not pay for them.
+                            bumperMarks: replay.presentation == .running
+                                ? Dictionary(
+                                    uniqueKeysWithValues: model
+                                        .pinballBumperContacts(for: replay.run)
+                                        .map {
+                                            (
+                                                $0.vertexIndex,
+                                                NativeReplayBumperMark(
+                                                    seatID: $0.seatID,
+                                                    center: $0.center,
+                                                    radius: $0.radius
+                                                )
+                                            )
+                                        }
+                                )
+                                : [:],
                             onImpact: { runID, impact in
                                 model.handlePinballRenderedImpact(
                                     runID: runID,
@@ -557,39 +579,8 @@ public struct PinballModeView: View {
                             }
                         )
                             .id(
-                                NativePinballReplayIdentity(
-                                    runID: run.id,
-                                    presentation: .running,
-                                    colorThemeID: model.colorTheme.id
-                                )
-                            )
-                            .zIndex(20)
-                            .allowsHitTesting(false)
-                    } else if case .revealing(let run, _, _) = model.pinballPhase {
-                        NativePinballSpriteReplay(
-                            run: run,
-                            presentation: .finalStatic,
-                            colorTheme: model.colorTheme
-                        )
-                            .id(
-                                NativePinballReplayIdentity(
-                                    runID: run.id,
-                                    presentation: .finalStatic,
-                                    colorThemeID: model.colorTheme.id
-                                )
-                            )
-                            .zIndex(20)
-                            .allowsHitTesting(false)
-                    } else if case .revealed(let run) = model.pinballPhase {
-                        NativePinballSpriteReplay(
-                            run: run,
-                            presentation: .finalStatic,
-                            colorTheme: model.colorTheme
-                        )
-                            .id(
-                                NativePinballReplayIdentity(
-                                    runID: run.id,
-                                    presentation: .finalStatic,
+                                NativePinballReplayViewIdentity(
+                                    runID: replay.run.id,
                                     colorThemeID: model.colorTheme.id
                                 )
                             )
@@ -783,6 +774,19 @@ public struct PinballModeView: View {
         // and revealing. Otherwise hiding the buttons expands GeometryReader
         // and correctly trips the model's rotation-safety cancellation.
         .frame(height: chrome.dockHeight, alignment: .top)
+    }
+
+    /// The run to draw and how to draw it, for every phase that shows one.
+    private var pinballReplayState: (
+        run: NativePinballRun,
+        presentation: NativePinballReplayPresentation
+    )? {
+        switch model.pinballPhase {
+        case .running(let run): (run, .running)
+        case .revealing(let run, _, _): (run, .finalStatic)
+        case .revealed(let run): (run, .finalStatic)
+        case .collecting: nil
+        }
     }
 
     private var pinballDockHasControls: Bool {
@@ -1656,9 +1660,20 @@ private struct NativePinballReplayAppearanceFlags: Equatable {
     let differentiateWithoutColor: Bool
 }
 
+/// What the *scene* considers a change worth replaying for. Presentation
+/// belongs here: switching from the moving replay to the final static frame is
+/// exactly a re-render of the same view.
 private struct NativePinballReplayIdentity: Hashable {
     let runID: UUID
     let presentation: NativePinballReplayPresentation
+    let colorThemeID: String
+}
+
+/// What SwiftUI considers a different *view*. Presentation is deliberately
+/// absent: including it destroys and rebuilds the SKView on every phase change,
+/// which is the one thing this whole path is arranged to avoid.
+private struct NativePinballReplayViewIdentity: Hashable {
+    let runID: UUID
     let colorThemeID: String
 }
 

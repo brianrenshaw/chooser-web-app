@@ -152,9 +152,11 @@ Great for board games, classrooms, chores, teams, family decisions, and any mome
 
 ### What's New (version 1.1)
 
-A first-run introduction. Who's First? now opens with a short three-page tour of Chooser, Tap In, and Pinball, so a new group can tell the three modes apart before the first decision. Each mode also shows a one-time card the first time you open it, and a single tap on the board dismisses it.
+Now on iPad. Rings, chits, seats, and the ball all scale with the screen, so the board fills the table instead of floating in the middle of it — a layout designed for the larger screen rather than a stretched-up phone.
 
-You can replay the tour any time from Settings → Show Welcome Again.
+Pinball updates. The seat rings are real obstacles on the table now: the ball strikes them, they light up, and it comes off them the way it does off a bumper in an actual pinball machine.
+
+A first-run introduction. Who's First? opens with a short three-page tour of Chooser, Tap In, and Pinball, so a new group can tell the three modes apart before the first decision. Each mode also shows a one-time card the first time you open it, and a single tap on the board dismisses it. You can replay the tour any time from Settings → Show Welcome Again.
 
 Everything still works completely offline, with no accounts, ads, analytics, or tracking.
 
