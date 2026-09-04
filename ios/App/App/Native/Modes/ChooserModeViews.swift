@@ -14,6 +14,7 @@ public struct TogetherModeView: View {
     public var body: some View {
         GeometryReader { geometry in
             let timeline = ChoiceAnticipationTimeline.chooser
+            let boardScale = BoardPieceVisualMetrics.boardScale(for: geometry.size)
             ZStack {
                     NativeTouchSurface(
                         accessibilityLabel: "Chooser touch area",
@@ -61,7 +62,7 @@ public struct TogetherModeView: View {
                     ) { elapsed in
                         ForEach(sortedVisuals, id: \.id) { visual in
                             let isWinner = model.togetherSnapshot.winner == visual.id
-                            let diameter = ringDiameter(in: geometry.size)
+                            let diameter = ChooserRingSizing.diameter(in: geometry.size)
                             let emphasis = ringEmphasis(isWinner: isWinner)
                             let motion = timeline.motion(
                                 at: elapsed,
@@ -70,7 +71,10 @@ public struct TogetherModeView: View {
                             )
                             BoardRingView(
                                 diameter: diameter,
-                                lineWidth: min(22, max(18, diameter * 0.125)),
+                                lineWidth: BoardPieceVisualMetrics.bandWidth(
+                                    for: diameter,
+                                    scale: boardScale
+                                ),
                                 style: .participant(
                                     theme: model.colorTheme,
                                     index: visual.colorIndex
@@ -79,7 +83,8 @@ public struct TogetherModeView: View {
                                 emphasisAnimationDuration: isWinner
                                     ? timeline.winnerRevealDuration
                                     : timeline.loserFadeDuration,
-                                accessibilityLabel: isWinner ? "Winning finger" : "Finger"
+                                accessibilityLabel: isWinner ? "Winning finger" : "Finger",
+                                boardScale: boardScale
                             )
                             .scaleEffect(motion.scale)
                             .rotationEffect(.degrees(motion.rotationDegrees))
@@ -93,14 +98,9 @@ public struct TogetherModeView: View {
                                     // landing arc from its first frame so the
                                     // result neither clips nor jumps inward.
                                     emphasis: .winner,
-                                    externalScale: max(
-                                        timeline.maximumScale,
-                                        ChooserWinnerLandingMetrics.maximumScale
-                                    ),
-                                    margin: 8 + max(
-                                        timeline.maximumTranslation,
-                                        ChooserWinnerLandingMetrics.maximumTranslation
-                                    )
+                                    externalScale: ChooserRingSizing.externalScale,
+                                    margin: ChooserRingSizing.margin,
+                                    scale: boardScale
                                 )
                             )
                             .offset(
@@ -142,15 +142,6 @@ public struct TogetherModeView: View {
         return false
     }
 
-    private func ringDiameter(in size: CGSize) -> CGFloat {
-        let shortEdge = min(size.width, size.height)
-        let isLandscape = size.width > size.height
-        let preferred = isLandscape
-            ? min(158, max(144, shortEdge * 0.52))
-            : min(176, max(158, shortEdge * 0.45))
-        return min(preferred, max(96, shortEdge - 40))
-    }
-
     private func ringEmphasis(isWinner: Bool) -> BoardPieceEmphasis {
         if case .revealed = model.togetherSnapshot.phase {
             return isWinner ? .winner : .dimmed
@@ -173,9 +164,11 @@ public struct TapInModeView: View {
     public var body: some View {
         VStack(spacing: 0) {
             GeometryReader { geometry in
+                let boardScale = BoardPieceVisualMetrics.boardScale(for: geometry.size)
                 let layout = TapInGridLayout.make(
                     count: model.tapInSnapshot.entries.count,
-                    in: geometry.size
+                    in: geometry.size,
+                    scale: boardScale
                 )
 
                 ZStack {
@@ -211,7 +204,8 @@ public struct TapInModeView: View {
                             let diameter = tokenDiameter(
                                 entry: entry,
                                 layout: layout,
-                                size: geometry.size
+                                size: geometry.size,
+                                scale: boardScale
                             )
                             NumberedChitView(
                                 number: entry.number,
@@ -220,7 +214,8 @@ public struct TapInModeView: View {
                                     theme: model.colorTheme,
                                     index: entry.number - 1
                                 ),
-                                emphasis: emphasis
+                                emphasis: emphasis,
+                                boardScale: boardScale
                             )
                             .scaleEffect(pulseScale)
                             .position(
@@ -230,7 +225,8 @@ public struct TapInModeView: View {
                                     layout: layout,
                                     size: geometry.size,
                                     diameter: diameter,
-                                    emphasis: emphasis
+                                    emphasis: emphasis,
+                                    scale: boardScale
                                 )
                             )
                             .zIndex(winner ? 5 : 1)
@@ -244,7 +240,10 @@ public struct TapInModeView: View {
                     }
 
                     ForEach(model.tapInPending.values.sorted { $0.touchID < $1.touchID }, id: \.touchID) { pending in
-                        let diameter = min(132, max(72, layout.diameter * 0.88))
+                        let diameter = min(
+                            132 * boardScale,
+                            max(72 * boardScale, layout.diameter * 0.88)
+                        )
                         NumberedChitView(
                             number: pending.number,
                             diameter: diameter,
@@ -252,14 +251,16 @@ public struct TapInModeView: View {
                                 theme: model.colorTheme,
                                 index: pending.number - 1
                             ),
-                            emphasis: .resting
+                            emphasis: .resting,
+                            boardScale: boardScale
                         )
                         .position(
                             BoardPieceVisualMetrics.clampedCenter(
                                 pending.location,
                                 in: geometry.size,
                                 diameter: diameter,
-                                emphasis: .resting
+                                emphasis: .resting,
+                                scale: boardScale
                             )
                         )
                         .transition(
@@ -400,7 +401,7 @@ public struct TapInModeView: View {
     private var tapInDetail: String {
         switch model.tapInSnapshot.phase {
         case .collecting where model.tapInSnapshot.entries.isEmpty:
-            "Pass the iPhone around."
+            "Pass it around."
         case .collecting where model.tapInSnapshot.entries.count == 1:
             "Add at least one more."
         case .collecting:
@@ -418,7 +419,8 @@ public struct TapInModeView: View {
         layout: TapInGridResult,
         size: CGSize,
         diameter: CGFloat,
-        emphasis: BoardPieceEmphasis
+        emphasis: BoardPieceEmphasis,
+        scale: CGFloat
     ) -> CGPoint {
         let proposed: CGPoint
         if case .revealed(let winner) = model.tapInSnapshot.phase, winner.id == entry.id {
@@ -434,19 +436,23 @@ public struct TapInModeView: View {
             diameter: diameter,
             emphasis: emphasis,
             externalScale: isCountdown ? 1.05 : 1,
-            margin: 2
+            margin: 2,
+            scale: scale
         )
     }
 
     private func tokenDiameter(
         entry: TapInEntry,
         layout: TapInGridResult,
-        size: CGSize
+        size: CGSize,
+        scale: CGFloat
     ) -> CGFloat {
-        if model.tapInSnapshot.winner?.id == entry.id {
-            return min(172, max(104, min(size.width, size.height) - 56))
-        }
-        return layout.diameter
+        guard model.tapInSnapshot.winner?.id == entry.id else { return layout.diameter }
+        return TapInGridLayout.winnerDiameter(
+            gridDiameter: layout.diameter,
+            in: size,
+            scale: scale
+        )
     }
 
     private func tokenEmphasis(winner: Bool) -> BoardPieceEmphasis {
@@ -1339,6 +1345,53 @@ private struct ChooserStatusDock: View {
 /// 1.06 winner lift. The scale values here are multipliers: the last keyframe
 /// returns to 1 so the ring finishes at the material view's canonical winner
 /// presentation instead of leaving a second transform behind.
+/// How large a Chooser ring draws, and how much room its reveal needs.
+///
+/// Extracted from the view so the no-collapse property can be tested directly:
+/// the sizing and the clamp must agree about the winner's footprint, and when
+/// they disagree `clampedCenter` degrades to stacking every ring on the exact
+/// centre of the board.
+enum ChooserRingSizing {
+    /// Everything a ring can add to its own footprint after it is chosen — the
+    /// anticipation rebound during the countdown and the landing rebound at
+    /// reveal, whichever is larger. Any resting ring can become the winner, so
+    /// this is reserved from the first frame rather than at reveal.
+    static let externalScale = max(
+        ChoiceAnticipationTimeline.chooser.maximumScale,
+        ChooserWinnerLandingMetrics.maximumScale
+    )
+
+    static let margin = 8 + max(
+        ChoiceAnticipationTimeline.chooser.maximumTranslation,
+        ChooserWinnerLandingMetrics.maximumTranslation
+    )
+
+    /// The authored anchors scale with the board; the fractions do not. On a
+    /// phone `boardScale` is 1 and the clamps bind exactly where they always
+    /// have, so the whole expression is the shipping expression.
+    ///
+    /// `fittedDiameter` replaces a hand-tuned `max(96, shortEdge - 40)` tail.
+    /// That tail was a guess at the same question and got it wrong on a short
+    /// landscape playfield, where it returned a diameter whose winner footprint
+    /// could not fit the height — precisely the case that collapses the clamp.
+    static func diameter(in size: CGSize) -> CGFloat {
+        let scale = BoardPieceVisualMetrics.boardScale(for: size)
+        let shortEdge = min(size.width, size.height)
+        let isLandscape = size.width > size.height
+        let preferred = isLandscape
+            ? min(158 * scale, max(144 * scale, shortEdge * 0.52))
+            : min(176 * scale, max(158 * scale, shortEdge * 0.45))
+        return BoardPieceVisualMetrics.fittedDiameter(
+            preferred,
+            in: size,
+            emphasis: .winner,
+            externalScale: externalScale,
+            margin: margin,
+            scale: scale
+        )
+    }
+}
+
 enum ChooserWinnerLandingMetrics {
     static let compressionScale: CGFloat = 0.94
     static let reboundScale: CGFloat = 1.055

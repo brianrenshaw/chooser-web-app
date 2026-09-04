@@ -113,6 +113,13 @@ public struct ChooserRootView: View {
                 // rounded corners, the board visible above it, a drag
                 // indicator, and swipe-to-dismiss.
                 .presentationDetents([.large])
+                // Detents apply in a compact size class, sizing in a regular
+                // one, so these do not fight: the phone keeps the large detent
+                // and an iPad gets a page-shaped card instead of a sheet
+                // stretched the full height of a 13-inch display. `.page`
+                // rather than `.form` because this is a paging carousel with
+                // artwork, not a settings list.
+                .presentationSizing(.page)
                 .presentationDragIndicator(.visible)
                 .presentationBackground(model.colorTheme.visualTheme.surfaceGradient)
             }

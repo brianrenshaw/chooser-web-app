@@ -377,7 +377,8 @@ Apple accepts a range of screenshot counts and device sizes that can change. Con
 - Review the required-reason API declaration for UserDefaults in the archive.
 - Export compliance is consistent with `ITSAppUsesNonExemptEncryption` set to false; the processed build reports `usesNonExemptEncryption = false`.
 - Complete content-rights and age-rating questions based on the actual app. The current low-risk utility answers should remain appropriate, but use Apple's current questionnaire.
-- Keep iPad, Mac, and Apple Vision Pro distribution disabled for this iPhone-only release.
+- iPad distribution is enabled as of 1.1 (`TARGETED_DEVICE_FAMILY = "1,2"`, all four iPad orientations). It ships a designed layout, not a stretched phone: board pieces scale, Pinball scales linearly to preserve its fairness proof, and onboarding decides its columns from page geometry rather than a size class. iPad is visual-only — there is no Taptic Engine, and no audio or haptic behaviour was added for it. **A new iPad screenshot set is required before submission.**
+- Keep Mac and Apple Vision Pro distribution disabled.
 
 ### Pricing and availability
 

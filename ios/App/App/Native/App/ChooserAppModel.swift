@@ -605,8 +605,11 @@ public final class ChooserAppModel {
         togetherVisuals.removeAll()
         togetherHueIndex = 0
 
-        let radiusX = min(playfieldSize.width * 0.29, 128)
-        let radiusY = min(playfieldSize.height * 0.27, 112)
+        // The caps scale with the board for the same reason the rings do: five
+        // rings synthesised onto a 296pt-ring board at phone radii would overlap.
+        let ringScale = BoardPieceVisualMetrics.boardScale(for: playfieldSize)
+        let radiusX = min(playfieldSize.width * 0.29, 128 * ringScale)
+        let radiusY = min(playfieldSize.height * 0.27, 112 * ringScale)
         let center = CGPoint(
             x: playfieldSize.width / 2,
             y: playfieldSize.height / 2

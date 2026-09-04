@@ -80,7 +80,7 @@ public struct NativeOfflineInformationCopy: Sendable {
                     summary: "Everyone places one finger on the screen at once.",
                     welcomeLine: "Hold still. The remaining ring is the choice.",
                     steps: [
-                        "Each person places one finger on the iPhone.",
+                        "Each person places one finger on the screen.",
                         "Hold still while the rings build anticipation.",
                         "The remaining ring is the choice."
                     ]
@@ -99,7 +99,7 @@ public struct NativeOfflineInformationCopy: Sendable {
                 NativeModeInstructions(
                     id: "pinball",
                     title: "Pinball",
-                    summary: "Everyone taps nearest their seat around a flat iPhone.",
+                    summary: "Everyone taps nearest their seat around a flat device.",
                     welcomeLine: "Flick across the playfield. Where the ball stops is the choice.",
                     steps: [
                         "Add two to twelve seats around the playfield.",
@@ -114,7 +114,7 @@ public struct NativeOfflineInformationCopy: Sendable {
                     id: "feedback",
                     title: "Haptics and sound",
                     paragraphs: [
-                        "Native haptics carry the Chooser and Tap In anticipation and winner. When Pinball needs its one fair wall flex, that visible rebound has a distinct tactile cue. The winner remains silent; brief on-device sound is used only as an eligible fallback when Core Haptics is unavailable. System settings can reduce or disable feedback."
+                        "On hardware that supports it, native haptics carry the Chooser and Tap In anticipation and winner, and Pinball's one fair wall flex has its own distinct tactile cue. Where there is no Taptic Engine — iPad included — the same moments are carried visually. The winner remains silent; brief on-device sound is used only as an eligible fallback when Core Haptics is unavailable. System settings can reduce or disable feedback."
                     ]
                 ),
                 NativeInfoSection(

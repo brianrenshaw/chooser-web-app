@@ -1229,7 +1229,8 @@ public extension BoardRingView where Center == EmptyView {
         fillsCenter: Bool = false,
         emphasis: BoardPieceEmphasis = .resting,
         emphasisAnimationDuration: TimeInterval? = nil,
-        accessibilityLabel: String = "Choice ring"
+        accessibilityLabel: String = "Choice ring",
+        boardScale: CGFloat = 1
     ) {
         self.init(
             diameter: diameter,
@@ -1239,6 +1240,7 @@ public extension BoardRingView where Center == EmptyView {
             emphasis: emphasis,
             emphasisAnimationDuration: emphasisAnimationDuration,
             accessibilityLabel: accessibilityLabel,
+            boardScale: boardScale,
             center: { EmptyView() }
         )
     }
@@ -1250,7 +1252,8 @@ public extension BoardRingView where Center == EmptyView {
         fillsCenter: Bool = false,
         emphasis: BoardPieceEmphasis = .resting,
         emphasisAnimationDuration: TimeInterval? = nil,
-        accessibilityLabel: String = "Choice ring"
+        accessibilityLabel: String = "Choice ring",
+        boardScale: CGFloat = 1
     ) {
         self.init(
             diameter: diameter,
@@ -1260,6 +1263,7 @@ public extension BoardRingView where Center == EmptyView {
             emphasis: emphasis,
             emphasisAnimationDuration: emphasisAnimationDuration,
             accessibilityLabel: accessibilityLabel,
+            boardScale: boardScale,
             center: { EmptyView() }
         )
     }

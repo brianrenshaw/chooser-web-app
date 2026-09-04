@@ -145,7 +145,11 @@ struct NativeWelcomeArtwork: View {
             let inset = CGSize(width: size.width * 0.86, height: size.height * 0.86)
             let originX = (size.width - inset.width) / 2
             let originY = (size.height - inset.height) / 2
-            let layout = TapInGridLayout.make(count: 4, in: inset)
+            // Explicitly scale 1. The miniature must show the layout the player
+            // will actually meet, not a scaled-up one, and the inset is small
+            // enough that the derived scale would be 1 today anyway — pinning it
+            // keeps that true if the illustration is ever allowed to grow.
+            let layout = TapInGridLayout.make(count: 4, in: inset, scale: 1)
 
             ForEach(Array(layout.positions.enumerated()), id: \.offset) { index, point in
                 NumberedChitView(

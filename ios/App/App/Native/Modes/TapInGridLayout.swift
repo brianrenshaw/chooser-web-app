@@ -6,22 +6,34 @@ public struct TapInGridResult: Equatable, Sendable {
 }
 
 public enum TapInGridLayout {
-    public static func preferredRingDiameter(for count: Int) -> CGFloat {
-        guard count > 5 else { return 156 }
-        return max(48, (156 * sqrt(5 / CGFloat(count))).rounded())
+    /// Takes a scale rather than a size on purpose. The size already drives the
+    /// cell fit inside `make`, and passing it twice would let the two disagree
+    /// about which board this is.
+    public static func preferredRingDiameter(for count: Int, scale: CGFloat = 1) -> CGFloat {
+        let s = max(1, scale)
+        guard count > 5 else { return 156 * s }
+        return max(48 * s, (156 * s * sqrt(5 / CGFloat(count))).rounded())
     }
 
-    public static func make(count: Int, in size: CGSize) -> TapInGridResult {
+    /// `scale` defaults to the one derived from `size`, so both call sites stay
+    /// correct without repeating the derivation; the onboarding miniature passes
+    /// `1` explicitly because it must show the layout the player will meet.
+    public static func make(
+        count: Int,
+        in size: CGSize,
+        scale: CGFloat? = nil
+    ) -> TapInGridResult {
+        let scale = scale ?? BoardPieceVisualMetrics.boardScale(for: size)
         guard count > 0, size.width > 0, size.height > 0 else {
-            return TapInGridResult(diameter: 156, positions: [])
+            return TapInGridResult(diameter: 156 * max(1, scale), positions: [])
         }
 
-        let horizontalPadding: CGFloat = size.width > size.height ? 8 : 16
-        let verticalPadding: CGFloat = 8
-        let gap: CGFloat = count >= 30 ? 6 : (count >= 12 ? 8 : 12)
+        let horizontalPadding: CGFloat = (size.width > size.height ? 8 : 16) * scale
+        let verticalPadding: CGFloat = 8 * scale
+        let gap: CGFloat = (count >= 30 ? 6 : (count >= 12 ? 8 : 12)) * scale
         let usableWidth = max(1, size.width - horizontalPadding * 2)
         let usableHeight = max(1, size.height - verticalPadding * 2)
-        let preferred = preferredRingDiameter(for: count)
+        let preferred = preferredRingDiameter(for: count, scale: scale)
 
         var bestColumns = 1
         var bestDiameter: CGFloat = 0
@@ -55,7 +67,8 @@ public enum TapInGridLayout {
             verticalPadding: verticalPadding,
             usableWidth: usableWidth,
             size: size,
-            diameter: diameter
+            diameter: diameter,
+            scale: scale
         )
 
         // Edge clamping can move the first or last item a few points toward its
@@ -75,11 +88,32 @@ public enum TapInGridLayout {
                 verticalPadding: verticalPadding,
                 usableWidth: usableWidth,
                 size: size,
-                diameter: diameter
+                diameter: diameter,
+                scale: scale
             )
         }
 
         return TapInGridResult(diameter: diameter, positions: positions)
+    }
+
+    /// The diameter of the revealed winner.
+    ///
+    /// The `max` against the grid diameter is the point of the function. At low
+    /// entry counts on a large board the grid already draws chits bigger than
+    /// the winner cap, and without this the chosen chit would visibly *shrink*
+    /// at the exact moment it is announced — an anticlimax at the one frame the
+    /// whole mode exists to deliver.
+    public static func winnerDiameter(
+        gridDiameter: CGFloat,
+        in size: CGSize,
+        scale: CGFloat = 1
+    ) -> CGFloat {
+        let s = max(1, scale)
+        let capped = min(
+            172 * s,
+            max(104 * s, min(size.width, size.height) - 56 * s)
+        )
+        return max(capped, gridDiameter)
     }
 
     private static func settledPositions(
@@ -91,7 +125,8 @@ public enum TapInGridLayout {
         verticalPadding: CGFloat,
         usableWidth: CGFloat,
         size: CGSize,
-        diameter: CGFloat
+        diameter: CGFloat,
+        scale: CGFloat
     ) -> [CGPoint] {
         (0..<count).map { index in
             let row = index / columns
@@ -109,7 +144,8 @@ public enum TapInGridLayout {
                 diameter: diameter,
                 emphasis: .resting,
                 externalScale: 1.05,
-                margin: 0
+                margin: 0,
+                scale: scale
             )
         }
     }

@@ -155,7 +155,6 @@ public struct NativeWelcomeCarousel: View {
                         page: page,
                         instructions: instructions(for: page),
                         colorTheme: colorTheme,
-                        usesWideLayout: usesWideLayout,
                         isCurrent: page == currentPage,
                         focusedPage: $focusedPage
                     )
@@ -221,10 +220,6 @@ public struct NativeWelcomeCarousel: View {
         currentPage == NativeWelcomePage.allCases.last
     }
 
-    private var usesWideLayout: Bool {
-        verticalSizeClass == .compact && !dynamicTypeSize.isAccessibilitySize
-    }
-
     private func instructions(for page: NativeWelcomePage) -> NativeModeInstructions? {
         copy.modes.first { $0.id == page.rawValue }
     }
@@ -257,13 +252,35 @@ public struct NativeWelcomeCarousel: View {
     }
 }
 
+// MARK: - Layout decision
+
+enum NativeWelcomeLayout {
+    /// Whether a welcome page puts its artwork beside the text rather than
+    /// above it.
+    ///
+    /// Keyed off the page's real width and shape, never a size class. The
+    /// predicate this replaces was `verticalSizeClass == .compact`, which is
+    /// **never true on iPad** — so a 13-inch canvas got the narrow phone layout
+    /// while an iPhone in landscape got the wide one. Size classes answer
+    /// "what kind of device is this?"; the question here is "is this page short
+    /// and wide enough for two columns?", which only the geometry can answer.
+    ///
+    /// The aspect guard is what keeps iPad **portrait** stacked. A 1024pt-wide
+    /// portrait page clears the width bar easily, but side-by-side is for
+    /// short-and-wide — which is what the original predicate was reaching for.
+    static func usesWideLayout(pageSize: CGSize, isAccessibilitySize: Bool) -> Bool {
+        guard !isAccessibilitySize else { return false }
+        guard pageSize.width.isFinite, pageSize.height > 0 else { return false }
+        return pageSize.width >= 620 && pageSize.width > pageSize.height * 1.1
+    }
+}
+
 // MARK: - One page
 
 struct NativeWelcomePageView: View {
     let page: NativeWelcomePage
     let instructions: NativeModeInstructions?
     let colorTheme: ChooserColorTheme
-    let usesWideLayout: Bool
     let isCurrent: Bool
     @AccessibilityFocusState.Binding var focusedPage: NativeWelcomePage?
 
@@ -271,7 +288,14 @@ struct NativeWelcomePageView: View {
 
     var body: some View {
         GeometryReader { geometry in
-            let artworkHeight = illustrationHeight(in: geometry.size)
+            let usesWideLayout = NativeWelcomeLayout.usesWideLayout(
+                pageSize: geometry.size,
+                isAccessibilitySize: dynamicTypeSize.isAccessibilitySize
+            )
+            let artworkHeight = illustrationHeight(
+                in: geometry.size,
+                usesWideLayout: usesWideLayout
+            )
 
             ScrollView {
                 Group {
@@ -327,13 +351,21 @@ struct NativeWelcomePageView: View {
         }
     }
 
-    /// Tuned for the sheet's partial detent, which is materially shorter than
-    /// the full screen this originally occupied. The caps keep the artwork from
-    /// crowding out the text block on small phones.
-    private func illustrationHeight(in size: CGSize) -> CGFloat {
+    /// The fractions keep the artwork from crowding out the text block; the
+    /// caps stop it ballooning. On a phone the cap is what binds and these are
+    /// the shipping numbers unchanged.
+    ///
+    /// The caps were tuned against a partial sheet detent that no longer
+    /// applies, so on a page-sized sheet they were simply stale — an iPad met
+    /// a 220pt illustration in 1000pt of height. Letting the cap itself rise
+    /// with the page keeps the phone value fixed while giving a large sheet
+    /// artwork proportionate to it.
+    private func illustrationHeight(in size: CGSize, usesWideLayout: Bool) -> CGFloat {
         if dynamicTypeSize.isAccessibilitySize { return 76 }
-        if usesWideLayout { return min(size.height * 0.66, 190) }
-        return min(size.height * 0.40, 220)
+        if usesWideLayout {
+            return min(size.height * 0.66, max(190, size.height * 0.34))
+        }
+        return min(size.height * 0.40, max(220, size.height * 0.30))
     }
 }
 
