@@ -62,7 +62,10 @@ public enum PinballFlickLaunchPolicy {
     /// Stronger flicks travel farther in less time. The stored range remains
     /// ascending, while ``flightDuration(forSpeed:)`` maps weak to its upper
     /// bound and strong to its lower bound.
-    public static let flightDurationRange: ClosedRange<TimeInterval> = 3.80...4.20
+    /// Flight duration at scale 1. `PinballBoardMetrics.flightDurationRange`
+    /// grows this for a larger board; see the reasoning there.
+    public static let referenceFlightDurationRange: ClosedRange<TimeInterval> = 3.80...4.20
+    public static let flightDurationRange: ClosedRange<TimeInterval> = referenceFlightDurationRange
     public static let launchEnergyRange: ClosedRange<CGFloat> = 0.62...1.0
     public static let narrowDirectionVariation: CGFloat = 1.5 * .pi / 180
     public static let wideDirectionVariation: CGFloat = 12 * .pi / 180
@@ -148,9 +151,28 @@ public enum PinballFlickLaunchPolicy {
     }
 
     public static func flightDuration(forSpeed speed: CGFloat) throws -> TimeInterval {
+        try flightDuration(forSpeed: speed, range: referenceFlightDurationRange)
+    }
+
+    /// Flight duration for a board of a given size. A stronger flick is always
+    /// the quicker one by the same ~1.105 ratio, whatever the board.
+    public static func flightDuration(
+        forSpeed speed: CGFloat,
+        boardSize: CGSize
+    ) throws -> TimeInterval {
+        try flightDuration(
+            forSpeed: speed,
+            range: PinballBoardMetrics(playfieldSize: boardSize).flightDurationRange
+        )
+    }
+
+    private static func flightDuration(
+        forSpeed speed: CGFloat,
+        range: ClosedRange<TimeInterval>
+    ) throws -> TimeInterval {
         let strength = try normalizedStrength(forSpeed: speed)
-        return flightDurationRange.upperBound - TimeInterval(strength) *
-            (flightDurationRange.upperBound - flightDurationRange.lowerBound)
+        return range.upperBound - TimeInterval(strength) *
+            (range.upperBound - range.lowerBound)
     }
 
     /// Perceptual launch energy for material motion feedback. Analytic distance

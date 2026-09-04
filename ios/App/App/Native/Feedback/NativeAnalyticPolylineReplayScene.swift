@@ -463,6 +463,12 @@ public final class NativeAnalyticPolylineReplayScene: SKScene {
     private let regionLayer = SKNode()
     private let guideLayer = SKNode()
     private let replayLayer = SKNode()
+    /// Pinball lengths for the board this scene is drawing. The scene's size is
+    /// the playfield size, so this agrees with the model by construction.
+    private var boardMetrics: PinballBoardMetrics {
+        PinballBoardMetrics(playfieldSize: size)
+    }
+
     private let impactLayer = SKNode()
     private let flashLayer = SKNode()
 
@@ -722,7 +728,7 @@ public final class NativeAnalyticPolylineReplayScene: SKScene {
         }
         guard let totalLength = cumulativeLengths.last, totalLength > 0 else { return }
 
-        let ballRadius = NativePinballReplayMetrics.ballDiameter / 2
+        let ballRadius = boardMetrics.ballRadius
 
         for (index, mark) in marks {
             guard index > 0, index < points.count - 1 else { continue }
@@ -868,7 +874,7 @@ public final class NativeAnalyticPolylineReplayScene: SKScene {
             return
         }
 
-        let diameter = NativePinballReplayMetrics.ballDiameter
+        let diameter = boardMetrics.ballDiameter
         let radius = diameter / 2
         let material = style.ballMaterial?.presentation ?? .fallback
         cursorNode.isHidden = sampler.points.isEmpty
@@ -918,9 +924,12 @@ public final class NativeAnalyticPolylineReplayScene: SKScene {
         let previousProgress = currentProgress
         currentProgress = min(1, max(0, progress))
         currentTailSpeedFraction = min(1, max(0, tailSpeedFraction))
-        let tailLength = NativePinballReplayMetrics.minimumTailLength +
-            (NativePinballReplayMetrics.maximumTailLength -
-                NativePinballReplayMetrics.minimumTailLength) * currentTailSpeedFraction
+        // Tail lengths are lengths and scale; the impact durations above are
+        // times and deliberately do not.
+        let tailMetrics = boardMetrics
+        let tailLength = tailMetrics.minimumTailLength +
+            (tailMetrics.maximumTailLength -
+                tailMetrics.minimumTailLength) * currentTailSpeedFraction
         let bands = sampler.tailBandsSinceLastVertex(
             at: currentProgress,
             maximumLength: tailLength,
@@ -940,7 +949,7 @@ public final class NativeAnalyticPolylineReplayScene: SKScene {
         let sample = RollingMaterialMarkPresentation.sample(
             distance: sampler.distance(at: currentProgress),
             tangent: sampler.tangent(at: currentProgress),
-            ballRadius: NativePinballReplayMetrics.ballDiameter / 2
+            ballRadius: boardMetrics.ballRadius
         )
         cursorHighlightNode.position = sample.position
         cursorHighlightNode.alpha = sample.alpha

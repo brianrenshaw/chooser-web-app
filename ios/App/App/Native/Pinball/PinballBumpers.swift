@@ -212,6 +212,18 @@ public extension PinballSeatTokenSizing {
     /// Gap the ball needs between two bumpers to have a way through.
     static let bumperPassageClearance: CGFloat = 8
     /// Below this the seat numerals stop being readable, so shrinking stops.
+    ///
+    /// Scaled with the board, and that is load-bearing rather than cosmetic. It
+    /// is tempting to argue this is typography and should stay a fixed physical
+    /// size — but it is the lower bound of a binary search, and an unscaled
+    /// bound makes that search non-similar: `[34, P]` is not `[34, 4P]` scaled,
+    /// so the 24 iterations land on a different diameter, the bumper radii
+    /// differ, and two boards that should be exact copies produce different
+    /// trajectories. That was caught by `testAUniformScaleChangesNoOutcome`.
+    ///
+    /// Scaling costs nothing in legibility either: if the floor binds on a large
+    /// board the resulting numerals are `34 * scale`, which is more readable
+    /// than 34, not less.
     static let bumperReadableFloorDiameter: CGFloat = 34
 
     /// The seat token layout, shrunk when necessary so the ball can pass
@@ -232,28 +244,29 @@ public extension PinballSeatTokenSizing {
         for partition: PinballRadialPartition,
         in playfieldSize: CGSize,
         ballRadius: CGFloat,
-        policy: PinballSeatTokenLayoutPolicy = .production
+        policy: PinballSeatTokenLayoutPolicy? = nil
     ) -> PinballSeatTokenLayout? {
-        let preferred = preferredDiameter(
-            in: playfieldSize,
-            seatCount: partition.regions.count
-        )
+        let metrics = PinballBoardMetrics(playfieldSize: playfieldSize)
+        let policy = policy ?? metrics.seatLayoutPolicy
+        let clearance = metrics.passageClearance
+        let preferred = metrics.preferredSeatDiameter(seatCount: partition.regions.count)
         guard let unconstrained = partition.seatTokenLayout(
             preferredDiameter: preferred,
             policy: policy
         ) else { return nil }
 
-        if bumpersLeaveAPassage(unconstrained, ballRadius: ballRadius) {
+        if bumpersLeaveAPassage(unconstrained, ballRadius: ballRadius, clearance: clearance) {
             return unconstrained
         }
 
-        var low = bumperReadableFloorDiameter
-        var high = max(bumperReadableFloorDiameter, preferred)
+        let readableFloor = bumperReadableFloorDiameter * metrics.scale
+        var low = readableFloor
+        var high = max(readableFloor, preferred)
         var chosen: PinballSeatTokenLayout?
         for _ in 0..<24 {
             let mid = (low + high) / 2
             if let candidate = partition.seatTokenLayout(preferredDiameter: mid, policy: policy),
-               bumpersLeaveAPassage(candidate, ballRadius: ballRadius) {
+               bumpersLeaveAPassage(candidate, ballRadius: ballRadius, clearance: clearance) {
                 chosen = candidate
                 low = mid
             } else {
@@ -263,7 +276,7 @@ public extension PinballSeatTokenSizing {
 
         return chosen
             ?? partition.seatTokenLayout(
-                preferredDiameter: bumperReadableFloorDiameter,
+                preferredDiameter: readableFloor,
                 policy: policy
             )
             ?? unconstrained
@@ -273,10 +286,11 @@ public extension PinballSeatTokenSizing {
     /// ball to travel between them.
     static func bumpersLeaveAPassage(
         _ layout: PinballSeatTokenLayout,
-        ballRadius: CGFloat
+        ballRadius: CGFloat,
+        clearance: CGFloat = bumperPassageClearance
     ) -> Bool {
         let collisionRadius = layout.tokenDiameter / 2 + ballRadius
-        let required = 2 * collisionRadius + bumperPassageClearance
+        let required = 2 * collisionRadius + clearance
         let centers = layout.placements.map(\.center)
         guard centers.count > 1 else { return true }
         for first in 0..<(centers.count - 1) {

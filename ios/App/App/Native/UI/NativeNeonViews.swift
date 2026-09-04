@@ -1282,7 +1282,11 @@ public struct PhysicalPinballBallView: View {
     public var body: some View {
         let material = theme.pinballMaterial.presentation
         let policy = accessibilityAppearancePolicy
-        let lineScale = max(0.45, diameter / NativePinballReplayMetrics.ballDiameter)
+        // Divides by the FIXED reference, never the live scaled diameter. If it
+        // divided by the scaled value, both sides would grow together, lineScale
+        // would stay 1, and a large ball would render with hairline strokes.
+        // Artwork ratios use the reference; physics uses the live value.
+        let lineScale = max(0.45, diameter / PinballBoardMetrics.referenceBallDiameter)
 
         ZStack {
             Circle()

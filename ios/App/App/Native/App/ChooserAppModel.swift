@@ -866,7 +866,8 @@ public final class ChooserAppModel {
                 bumpers: pinballBumperField(for: partition)
             )
             let duration = try PinballFlickLaunchPolicy.flightDuration(
-                forSpeed: flickIntent.speed
+                forSpeed: flickIntent.speed,
+                boardSize: pinballPlayfieldSize
             )
             let strength = try PinballFlickLaunchPolicy.normalizedStrength(
                 forSpeed: flickIntent.speed
@@ -907,7 +908,10 @@ public final class ChooserAppModel {
             )
             try beginPinballRun(
                 result: result,
-                flightDuration: try PinballFlickLaunchPolicy.flightDuration(forSpeed: speed),
+                flightDuration: try PinballFlickLaunchPolicy.flightDuration(
+                    forSpeed: speed,
+                    boardSize: pinballPlayfieldSize
+                ),
                 normalizedStrength: try PinballFlickLaunchPolicy.normalizedStrength(
                     forSpeed: speed
                 ),
@@ -1061,6 +1065,11 @@ public final class ChooserAppModel {
         )
     }
 
+    /// Every Pinball length for the current board.
+    var pinballMetrics: PinballBoardMetrics {
+        PinballBoardMetrics(playfieldSize: pinballPlayfieldSize)
+    }
+
     /// The settled seat token layout, computed once and reused.
     ///
     /// Bumper aware: seats shrink when they would otherwise leave the ball no
@@ -1089,7 +1098,7 @@ public final class ChooserAppModel {
         let layout = PinballSeatTokenSizing.bumperAwareLayout(
             for: partition,
             in: pinballPlayfieldSize,
-            ballRadius: NativePinballReplayMetrics.ballDiameter / 2
+            ballRadius: pinballMetrics.ballRadius
         )
         pinballLayoutCache = (key, layout)
         return layout
@@ -1107,7 +1116,7 @@ public final class ChooserAppModel {
         guard let layout = pinballSeatTokenLayout(for: partition) else { return .empty }
         return PinballBumperField(
             from: layout,
-            ballRadius: NativePinballReplayMetrics.ballDiameter / 2
+            ballRadius: pinballMetrics.ballRadius
         )
     }
 
@@ -1308,7 +1317,7 @@ public final class ChooserAppModel {
     private func makePinballPartition() throws -> PinballRadialPartition {
         // Keep the complete satin ball and its contact shadow inside the
         // clipped playfield while still letting it visually compress at walls.
-        let collisionInset = NativePinballReplayMetrics.collisionInset
+        let collisionInset = pinballMetrics.collisionInset
         let bounds = CGRect(origin: .zero, size: pinballPlayfieldSize).insetBy(
             dx: collisionInset,
             dy: collisionInset

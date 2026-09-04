@@ -97,13 +97,29 @@ public struct PinballSeatTokenLayoutPolicy: Equatable, Sendable {
         dividerClearance: 6,
         maximumRenderedScale: 1.06
     )
+
+    /// Clearances are lengths and scale with the board. The radial fraction and
+    /// the rendered scale are ratios and must not.
+    public func scaled(by scale: CGFloat) -> PinballSeatTokenLayoutPolicy {
+        let s = max(1, scale)
+        guard s != 1 else { return self }
+        return PinballSeatTokenLayoutPolicy(
+            preferredRadialFraction: preferredRadialFraction,
+            edgeClearance: edgeClearance * s,
+            dividerClearance: dividerClearance * s,
+            maximumRenderedScale: maximumRenderedScale
+        )
+    }
 }
 
 /// The authored Pinball chit size before equal-area geometry applies a denser
 /// uniform fit. Kept alongside the layout policy so production and tests use
 /// exactly the same sizing path in every orientation.
 public enum PinballSeatTokenSizing {
-    public static func preferredDiameter(
+    /// Seat sizing at scale 1. `PinballBoardMetrics` evaluates this at the
+    /// board's reference size and multiplies, so the authored expression —
+    /// including which of its clamps binds — is always the phone expression.
+    public static func referencePreferredDiameter(
         in playfieldSize: CGSize,
         seatCount: Int
     ) -> CGFloat {
@@ -120,17 +136,26 @@ public enum PinballSeatTokenSizing {
         )
     }
 
+    /// Seat sizing for a real board, scaled for its size.
+    public static func preferredDiameter(
+        in playfieldSize: CGSize,
+        seatCount: Int
+    ) -> CGFloat {
+        PinballBoardMetrics(playfieldSize: playfieldSize)
+            .preferredSeatDiameter(seatCount: seatCount)
+    }
+
     public static func layout(
         for partition: PinballRadialPartition,
         in playfieldSize: CGSize,
-        policy: PinballSeatTokenLayoutPolicy = .production
+        policy: PinballSeatTokenLayoutPolicy? = nil
     ) -> PinballSeatTokenLayout? {
-        partition.seatTokenLayout(
-            preferredDiameter: preferredDiameter(
-                in: playfieldSize,
+        let metrics = PinballBoardMetrics(playfieldSize: playfieldSize)
+        return partition.seatTokenLayout(
+            preferredDiameter: metrics.preferredSeatDiameter(
                 seatCount: partition.regions.count
             ),
-            policy: policy
+            policy: policy ?? metrics.seatLayoutPolicy
         )
     }
 }

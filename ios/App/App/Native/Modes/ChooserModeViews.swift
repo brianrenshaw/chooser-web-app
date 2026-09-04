@@ -1046,10 +1046,12 @@ enum PinballDirectManipulationGeometry {
     static func clampedBallCenter(
         for fingerPoint: CGPoint,
         in playfieldSize: CGSize,
-        collisionInset: CGFloat = NativePinballReplayMetrics.collisionInset +
-            PinballFlickLaunchPolicy.releaseInteriorClearance
+        collisionInset: CGFloat? = nil
     ) -> CGPoint {
-        CGPoint(
+        let collisionInset = collisionInset
+            ?? PinballBoardMetrics(playfieldSize: playfieldSize).collisionInset
+                + PinballFlickLaunchPolicy.releaseInteriorClearance
+        return CGPoint(
             x: min(
                 max(fingerPoint.x, collisionInset),
                 max(collisionInset, playfieldSize.width - collisionInset)
@@ -1074,6 +1076,11 @@ private struct PinballDirectManipulationPreview: View {
         )
     }
 
+    /// The ball in the player's hand must be the ball that launches.
+    private var boardMetrics: PinballBoardMetrics {
+        PinballBoardMetrics(playfieldSize: playfieldSize)
+    }
+
     var body: some View {
         ZStack {
             Canvas { context, _ in
@@ -1082,7 +1089,7 @@ private struct PinballDirectManipulationPreview: View {
 
             PhysicalPinballBallView(
                 theme: colorTheme,
-                diameter: NativePinballReplayMetrics.ballDiameter
+                diameter: boardMetrics.ballDiameter
             )
             .position(ballCenter)
         }
@@ -1097,8 +1104,9 @@ private struct PinballDirectManipulationPreview: View {
             dx: tracking.velocity.dx / speed,
             dy: tracking.velocity.dy / speed
         )
-        let tailLength = min(72, max(28, tracking.payload.distance * 0.72))
-        let ballRadius = NativePinballReplayMetrics.ballDiameter / 2
+        let scale = boardMetrics.scale
+        let tailLength = min(72 * scale, max(28 * scale, tracking.payload.distance * 0.72))
+        let ballRadius = boardMetrics.ballRadius
         let visibleEnd = CGPoint(
             x: ballCenter.x - unit.dx * ballRadius * 0.72,
             y: ballCenter.y - unit.dy * ballRadius * 0.72
