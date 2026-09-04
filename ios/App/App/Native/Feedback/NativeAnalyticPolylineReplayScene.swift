@@ -1544,24 +1544,30 @@ public final class NativeAnalyticPolylineReplayScene: SKScene {
         if style.reducesMotion {
             node.setScale(1)
             node.run(.sequence([
-                .fadeAlpha(to: 1, duration: 0.04),
-                .wait(forDuration: 0.18),
-                .fadeOut(withDuration: 0.16),
+                .fadeAlpha(to: 1, duration: 0.05),
+                .wait(forDuration: 0.26),
+                .fadeOut(withDuration: 0.22),
                 .removeFromParent()
             ]))
         } else {
             // Blooms at full size and decays. It must not expand from a point
             // like the winner flash: that reads as a ripple passing through,
             // not as this piece being struck.
+            //
+            // The rise stays fast so the light is unmistakably on the contact
+            // frame, but it then holds briefly before decaying. Without the
+            // hold the seat reads as flickering rather than as lit, especially
+            // at speed when the ball is already several rings away.
             node.setScale(0.94)
             node.run(.sequence([
                 .group([
-                    .fadeAlpha(to: 1, duration: 0.045),
-                    .scale(to: 1.09, duration: 0.045)
+                    .fadeAlpha(to: 1, duration: 0.05),
+                    .scale(to: 1.09, duration: 0.05)
                 ]),
+                .wait(forDuration: 0.09),
                 .group([
-                    .scale(to: 1, duration: 0.28),
-                    .fadeOut(withDuration: 0.28)
+                    .scale(to: 1, duration: 0.42),
+                    .fadeOut(withDuration: 0.42)
                 ]),
                 .removeFromParent()
             ]))
