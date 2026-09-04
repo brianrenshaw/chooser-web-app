@@ -113,6 +113,13 @@ private struct TogetherRevealedThemeShuffleBackup {
     let capturedAt: Date
 }
 
+/// Identifies a settled seat layout. Seats are stored normalized, so the board
+/// size and the normalized positions together determine the layout completely.
+struct PinballLayoutCacheKey: Equatable {
+    let playfieldSize: CGSize
+    let seats: [CGPoint]
+}
+
 @MainActor
 @Observable
 public final class ChooserAppModel {
@@ -159,6 +166,7 @@ public final class ChooserAppModel {
     @ObservationIgnored private var isWelcomeReplayRequested = false
     @ObservationIgnored private var pinballTask: Task<Void, Never>?
     @ObservationIgnored private var pinballPendingCollisionFeedback: [Int: NativePinballCollisionFeedbackEvent] = [:]
+    @ObservationIgnored private var pinballLayoutCache: (key: PinballLayoutCacheKey, layout: PinballSeatTokenLayout?)?
     @ObservationIgnored private var pinballEndpointSettleCueRunID: UUID?
     @ObservationIgnored private var pinballFinishEnqueuedRunID: UUID?
     @ObservationIgnored private var toastTask: Task<Void, Never>?
@@ -1053,28 +1061,50 @@ public final class ChooserAppModel {
         )
     }
 
-    /// The settled seat token layout.
+    /// The settled seat token layout, computed once and reused.
     ///
     /// Bumper aware: seats shrink when they would otherwise leave the ball no
-    /// way between adjacent rings. Both the drawn chit and its bumper come from
-    /// this one layout, so the artwork and the physics can never disagree.
-    public func pinballSeatTokenLayout() -> PinballSeatTokenLayout? {
-        guard let partition = pinballPartition() else { return nil }
-        return PinballSeatTokenSizing.bumperAwareLayout(
+    /// way between adjacent rings.
+    ///
+    /// The drawn chit and the physics circle must be the same circle. They used
+    /// to be two separate `bumperAwareLayout` calls that happened to receive
+    /// identical arguments — the same value by coincidence, not the same object.
+    /// Every parameter added to that call was another chance for the two to
+    /// drift, and a drift is silent: the ball would collide with circles that
+    /// are not where the numbers are drawn, which feeds the reachability solver
+    /// and so is unfairness-adjacent, not merely cosmetic. One cache, one call.
+    ///
+    /// The cache also matters for cost: the layout runs a nested binary search
+    /// and the view asks for it inside a `GeometryReader` body.
+    func pinballSeatTokenLayout(
+        for partition: PinballRadialPartition
+    ) -> PinballSeatTokenLayout? {
+        let key = PinballLayoutCacheKey(
+            playfieldSize: pinballPlayfieldSize,
+            seats: pinballSeats.map(\.normalizedLocation)
+        )
+        if let cached = pinballLayoutCache, cached.key == key {
+            return cached.layout
+        }
+        let layout = PinballSeatTokenSizing.bumperAwareLayout(
             for: partition,
             in: pinballPlayfieldSize,
             ballRadius: NativePinballReplayMetrics.ballDiameter / 2
         )
+        pinballLayoutCache = (key, layout)
+        return layout
+    }
+
+    public func pinballSeatTokenLayout() -> PinballSeatTokenLayout? {
+        guard let partition = pinballPartition() else { return nil }
+        return pinballSeatTokenLayout(for: partition)
     }
 
     /// The bumper field for the current seats, or an empty field when the board
-    /// is not laid out yet.
+    /// is not laid out yet. Shares the cached layout above, so the physics
+    /// circles are literally the drawn circles.
     func pinballBumperField(for partition: PinballRadialPartition) -> PinballBumperField {
-        guard let layout = PinballSeatTokenSizing.bumperAwareLayout(
-            for: partition,
-            in: pinballPlayfieldSize,
-            ballRadius: NativePinballReplayMetrics.ballDiameter / 2
-        ) else { return .empty }
+        guard let layout = pinballSeatTokenLayout(for: partition) else { return .empty }
         return PinballBumperField(
             from: layout,
             ballRadius: NativePinballReplayMetrics.ballDiameter / 2

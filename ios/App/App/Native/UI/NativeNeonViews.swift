@@ -656,12 +656,70 @@ public enum BoardPieceEmphasis: Sendable {
 }
 
 public enum BoardPieceVisualMetrics {
-    public static func bandWidth(for diameter: CGFloat) -> CGFloat {
-        min(22, max(18, diameter * 0.125))
+    /// Playfield short edge at and below which a board renders exactly as it
+    /// always has. Chosen to sit above the largest iPhone playfield short edge
+    /// in either orientation, so every phone — and a narrow iPad Slide Over
+    /// column, which is phone-sized — resolves to scale 1 by construction
+    /// rather than by a device check.
+    public static let referenceShortEdge: CGFloat = 440
+
+    /// How much larger board pieces draw on a canvas bigger than a phone's.
+    ///
+    /// Deliberately sublinear. A linear law on a 13-inch iPad would give a
+    /// ~410pt Chooser ring, which is absurd for five fingers on one screen;
+    /// the exponent keeps pieces substantial without letting them swallow the
+    /// board.
+    ///
+    /// This is NOT the law Pinball uses. Pinball scales its lengths linearly
+    /// because a uniform scale is a similarity transform of its reachability
+    /// problem, which is what makes its fairness guarantee survive a change of
+    /// board size for free. Damping that would forfeit the proof. The two laws
+    /// answer different questions and must not be unified — see
+    /// `PinballBoardMetrics`.
+    public static func boardScale(for playfieldSize: CGSize) -> CGFloat {
+        let shortEdge = min(playfieldSize.width, playfieldSize.height)
+        guard shortEdge.isFinite, shortEdge > referenceShortEdge else { return 1 }
+        return min(1.9, pow(shortEdge / referenceShortEdge, 0.62))
     }
 
-    public static func chitRimWidth(for diameter: CGFloat) -> CGFloat {
-        min(9, max(7, diameter * 0.075))
+    public static func bandWidth(for diameter: CGFloat, scale: CGFloat = 1) -> CGFloat {
+        // The clamp bounds scale, not the ratio. Saturating at a fixed 22 is
+        // what makes a large ring read as a thin hoop instead of a game piece.
+        let s = max(1, scale)
+        return min(22 * s, max(18 * s, diameter * 0.125))
+    }
+
+    public static func chitRimWidth(for diameter: CGFloat, scale: CGFloat = 1) -> CGFloat {
+        let s = max(1, scale)
+        return min(9 * s, max(7 * s, diameter * 0.075))
+    }
+
+    /// Keyline weight for a piece of a given diameter.
+    ///
+    /// Keyed off diameter rather than board scale so it is correct for any
+    /// large piece regardless of which sizing path produced it. Square-rooted
+    /// so an edge thickens without becoming a second band, and exactly 1 at the
+    /// authored 176pt reference so no current render changes.
+    public static func edgeWidthScale(for diameter: CGFloat) -> CGFloat {
+        guard diameter.isFinite, diameter > 176 else { return 1 }
+        return min(1.6, sqrt(diameter / 176))
+    }
+
+    /// The authored contact shadow for an emphasis, scaled with the board.
+    ///
+    /// A flat shadow under a 296pt piece reads as a sticker, which breaks the
+    /// physical-game-piece language the whole visual system exists to sell.
+    public static func shadowMetrics(
+        for emphasis: BoardPieceEmphasis,
+        scale: CGFloat = 1
+    ) -> (radius: CGFloat, y: CGFloat) {
+        let s = max(1, scale)
+        switch emphasis {
+        case .resting: return (5.5 * s, 3.5 * s)
+        case .pulsing: return (7.5 * s, 4.5 * s)
+        case .winner: return (11 * s, 7 * s)
+        case .receded, .dimmed: return (4 * s, 2 * s)
+        }
     }
 
     public static func ringTextureOpacity(from baseOpacity: Double) -> Double {
@@ -679,21 +737,65 @@ public enum BoardPieceVisualMetrics {
         }
     }
 
-    public static func renderingOverflow(for diameter: CGFloat, emphasis: BoardPieceEmphasis) -> CGFloat {
+    public static func renderingOverflow(
+        for diameter: CGFloat,
+        emphasis: BoardPieceEmphasis,
+        scale: CGFloat = 1
+    ) -> CGFloat {
         // Match the complete authored contact shadow, not merely the circle's
         // geometric edge. This footprint is consumed by every clipped mode
         // stage, so undercounting it would trim resting pieces at an edge and
         // the lifted 11pt-radius/7pt-offset winner shadow after reveal.
-        emphasis.isWinner ? 20 : 12
+        //
+        // The authored 12/20 anchors are kept and multiplied rather than
+        // derived from the shadow: the slack differs between them (9 -> 12 but
+        // 18 -> 20), so any formula that reproduces one misses the other. The
+        // invariant that actually matters — overflow covers radius + offset —
+        // is asserted in tests instead.
+        (emphasis.isWinner ? 20 : 12) * max(1, scale)
     }
 
     public static func footprintRadius(
         diameter: CGFloat,
         emphasis: BoardPieceEmphasis,
-        externalScale: CGFloat = 1
+        externalScale: CGFloat = 1,
+        scale: CGFloat = 1
     ) -> CGFloat {
-        let paddedRadius = diameter / 2 + renderingOverflow(for: diameter, emphasis: emphasis)
+        let paddedRadius = diameter / 2 + renderingOverflow(
+            for: diameter,
+            emphasis: emphasis,
+            scale: scale
+        )
         return paddedRadius * maximumScale(for: emphasis) * max(1, externalScale)
+    }
+
+    /// The largest diameter whose full footprint still fits the stage.
+    ///
+    /// `clampedCenter` degrades to "every piece at the exact centre" once a
+    /// footprint cannot fit, which stacks pieces on top of each other. That
+    /// guard is correct as a last resort, so rather than weaken it, this makes
+    /// the unfittable case unreachable — and replaces three separately tuned
+    /// fudge tails that each solved this by hand.
+    public static func fittedDiameter(
+        _ preferred: CGFloat,
+        in size: CGSize,
+        emphasis: BoardPieceEmphasis = .winner,
+        externalScale: CGFloat = 1,
+        margin: CGFloat = 4,
+        scale: CGFloat = 1
+    ) -> CGFloat {
+        guard size.width > 0, size.height > 0, preferred > 0 else { return preferred }
+        let halfShortEdge = min(size.width, size.height) / 2
+        let budget = halfShortEdge - max(0, margin)
+        guard budget > 0 else { return preferred }
+
+        // footprintRadius = (d/2 + overflow) * maximumScale * externalScale
+        let overflow = renderingOverflow(for: preferred, emphasis: emphasis, scale: scale)
+        let multiplier = maximumScale(for: emphasis) * max(1, externalScale)
+        guard multiplier > 0 else { return preferred }
+        let fitted = (budget / multiplier - overflow) * 2
+        guard fitted.isFinite, fitted > 0 else { return preferred }
+        return min(preferred, fitted)
     }
 
     public static func clampedCenter(
@@ -702,13 +804,15 @@ public enum BoardPieceVisualMetrics {
         diameter: CGFloat,
         emphasis: BoardPieceEmphasis = .resting,
         externalScale: CGFloat = 1,
-        margin: CGFloat = 4
+        margin: CGFloat = 4,
+        scale: CGFloat = 1
     ) -> CGPoint {
         guard size.width > 0, size.height > 0 else { return .zero }
         let radius = footprintRadius(
             diameter: diameter,
             emphasis: emphasis,
-            externalScale: externalScale
+            externalScale: externalScale,
+            scale: scale
         ) + max(0, margin)
         let xInset = min(radius, size.width / 2)
         let yInset = min(radius, size.height / 2)
@@ -729,6 +833,9 @@ public struct BoardRingView<Center: View>: View {
     private let emphasis: BoardPieceEmphasis
     private let emphasisAnimationDuration: TimeInterval?
     private let accessibilityLabel: String
+    /// How much larger than a phone this board is drawing. Defaults to 1, so a
+    /// caller that never learned about scaling renders exactly as it always did.
+    private let boardScale: CGFloat
     private let center: Center
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -744,6 +851,7 @@ public struct BoardRingView<Center: View>: View {
         emphasis: BoardPieceEmphasis = .resting,
         emphasisAnimationDuration: TimeInterval? = nil,
         accessibilityLabel: String = "Choice ring",
+        boardScale: CGFloat = 1,
         @ViewBuilder center: () -> Center
     ) {
         self.diameter = diameter
@@ -753,6 +861,7 @@ public struct BoardRingView<Center: View>: View {
         self.emphasis = emphasis
         self.emphasisAnimationDuration = emphasisAnimationDuration
         self.accessibilityLabel = accessibilityLabel
+        self.boardScale = boardScale
         self.center = center()
     }
 
@@ -764,6 +873,7 @@ public struct BoardRingView<Center: View>: View {
         emphasis: BoardPieceEmphasis = .resting,
         emphasisAnimationDuration: TimeInterval? = nil,
         accessibilityLabel: String = "Choice ring",
+        boardScale: CGFloat = 1,
         @ViewBuilder center: () -> Center
     ) {
         self.init(
@@ -774,6 +884,7 @@ public struct BoardRingView<Center: View>: View {
             emphasis: emphasis,
             emphasisAnimationDuration: emphasisAnimationDuration,
             accessibilityLabel: accessibilityLabel,
+            boardScale: boardScale,
             center: center
         )
     }
@@ -781,7 +892,11 @@ public struct BoardRingView<Center: View>: View {
     public var body: some View {
         let presentation = presentation
         let policy = accessibilityAppearancePolicy
-        let overflow = BoardPieceVisualMetrics.renderingOverflow(for: diameter, emphasis: emphasis)
+        let overflow = BoardPieceVisualMetrics.renderingOverflow(
+            for: diameter,
+            emphasis: emphasis,
+            scale: boardScale
+        )
 
         ZStack {
             if fillsCenter {
@@ -812,8 +927,12 @@ public struct BoardRingView<Center: View>: View {
         let bandWidth = min(diameter * 0.46, max(1, lineWidth))
         let material = style.finish.presentation
         let policy = accessibilityAppearancePolicy
-        let outerEdgeWidth = material.outerEdgeWidth * policy.edgeWidthMultiplier
-        let innerEdgeWidth = material.innerEdgeWidth * policy.edgeWidthMultiplier
+        // Keylines thicken with the piece so a large ring keeps a decisive
+        // edge instead of a hairline. Derived from one multiplier rather than
+        // by editing the eight authored per-finish tuples.
+        let edgeScale = BoardPieceVisualMetrics.edgeWidthScale(for: diameter)
+        let outerEdgeWidth = material.outerEdgeWidth * policy.edgeWidthMultiplier * edgeScale
+        let innerEdgeWidth = material.innerEdgeWidth * policy.edgeWidthMultiplier * edgeScale
         let innerOcclusionWidth = max(1.2, innerEdgeWidth * 1.35)
         let innerOcclusionInset = max(0, bandWidth - innerOcclusionWidth)
 
@@ -908,11 +1027,12 @@ public struct BoardRingView<Center: View>: View {
 
     private func opaqueChit(presentation: Presentation) -> some View {
         let policy = accessibilityAppearancePolicy
-        let rimWidth = BoardPieceVisualMetrics.chitRimWidth(for: diameter)
+        let rimWidth = BoardPieceVisualMetrics.chitRimWidth(for: diameter, scale: boardScale)
             * (policy.increasedContrast ? 1.12 : 1)
         let material = style.finish.presentation
-        let outerEdgeWidth = material.outerEdgeWidth * policy.edgeWidthMultiplier
-        let innerEdgeWidth = material.innerEdgeWidth * policy.edgeWidthMultiplier
+        let edgeScale = BoardPieceVisualMetrics.edgeWidthScale(for: diameter)
+        let outerEdgeWidth = material.outerEdgeWidth * policy.edgeWidthMultiplier * edgeScale
+        let innerEdgeWidth = material.innerEdgeWidth * policy.edgeWidthMultiplier * edgeScale
         return ZStack {
             Circle().fill(style.face)
 
@@ -1017,14 +1137,18 @@ public struct BoardRingView<Center: View>: View {
 
     private var presentation: Presentation {
         let policy = accessibilityAppearancePolicy
+        let shadow = BoardPieceVisualMetrics.shadowMetrics(
+            for: emphasis,
+            scale: boardScale
+        )
         switch emphasis {
         case .resting:
             return Presentation(
                 scale: 1,
                 opacity: 1,
                 shadowOpacity: 0.22 * policy.shadowOpacityMultiplier,
-                shadowRadius: 5.5,
-                shadowY: 3.5,
+                shadowRadius: shadow.radius,
+                shadowY: shadow.y,
                 saturation: 1
             )
         case .pulsing:
@@ -1032,8 +1156,8 @@ public struct BoardRingView<Center: View>: View {
                 scale: reduceMotion ? 1 : 0.965,
                 opacity: 1,
                 shadowOpacity: 0.28 * policy.shadowOpacityMultiplier,
-                shadowRadius: 7.5,
-                shadowY: 4.5,
+                shadowRadius: shadow.radius,
+                shadowY: shadow.y,
                 saturation: 1
             )
         case .winner:
@@ -1041,8 +1165,8 @@ public struct BoardRingView<Center: View>: View {
                 scale: 1.06,
                 opacity: 1,
                 shadowOpacity: 0.38 * policy.shadowOpacityMultiplier,
-                shadowRadius: 11,
-                shadowY: 7,
+                shadowRadius: shadow.radius,
+                shadowY: shadow.y,
                 saturation: 1
             )
         case .receded, .dimmed:
@@ -1050,8 +1174,8 @@ public struct BoardRingView<Center: View>: View {
                 scale: 1,
                 opacity: policy.dimmedPieceOpacity,
                 shadowOpacity: 0.12 * policy.shadowOpacityMultiplier,
-                shadowRadius: 4,
-                shadowY: 2,
+                shadowRadius: shadow.radius,
+                shadowY: shadow.y,
                 saturation: 0.68
             )
         }
@@ -1227,6 +1351,7 @@ public struct NumberedChitView: View {
     public let diameter: CGFloat
     public let style: BoardPieceStyle
     public let emphasis: BoardPieceEmphasis
+    public let boardScale: CGFloat
 
     public var palette: BoardPieceStyle { style }
 
@@ -1234,31 +1359,41 @@ public struct NumberedChitView: View {
         number: Int,
         diameter: CGFloat = 76,
         style: BoardPieceStyle = .cyan,
-        emphasis: BoardPieceEmphasis = .resting
+        emphasis: BoardPieceEmphasis = .resting,
+        boardScale: CGFloat = 1
     ) {
         self.number = number
         self.diameter = diameter
         self.style = style
         self.emphasis = emphasis
+        self.boardScale = boardScale
     }
 
     public init(
         number: Int,
         diameter: CGFloat = 76,
         palette: BoardPieceStyle,
-        emphasis: BoardPieceEmphasis = .resting
+        emphasis: BoardPieceEmphasis = .resting,
+        boardScale: CGFloat = 1
     ) {
-        self.init(number: number, diameter: diameter, style: palette, emphasis: emphasis)
+        self.init(
+            number: number,
+            diameter: diameter,
+            style: palette,
+            emphasis: emphasis,
+            boardScale: boardScale
+        )
     }
 
     public var body: some View {
         BoardRingView(
             diameter: diameter,
-            lineWidth: BoardPieceVisualMetrics.chitRimWidth(for: diameter),
+            lineWidth: BoardPieceVisualMetrics.chitRimWidth(for: diameter, scale: boardScale),
             style: style,
             fillsCenter: true,
             emphasis: emphasis,
-            accessibilityLabel: emphasis.isWinner ? "Winning number \(number)" : "Number \(number)"
+            accessibilityLabel: emphasis.isWinner ? "Winning number \(number)" : "Number \(number)",
+            boardScale: boardScale
         ) {
             Text(number, format: .number)
                 .font(.system(size: diameter * 0.31, weight: .heavy, design: .rounded))

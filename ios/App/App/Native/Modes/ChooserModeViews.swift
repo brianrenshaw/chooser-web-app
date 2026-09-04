@@ -624,12 +624,12 @@ public struct PinballModeView: View {
                         .allowsHitTesting(false)
                     }
 
-                    ForEach(model.pinballSeats) { seat in
-                        let diameter = tokenLayout?.tokenDiameter
-                            ?? PinballSeatTokenSizing.preferredDiameter(
-                                in: geometry.size,
-                                seatCount: model.pinballSeats.count
-                            )
+                    // Only the settled layout may size a seat. Falling back to
+                    // the raw preferred diameter was a third sizing path that
+                    // bypassed the passage shrink entirely, so the drawn chit
+                    // could be larger than the circle the ball collides with.
+                    ForEach(tokenLayout == nil ? [] : model.pinballSeats) { seat in
+                        let diameter = tokenLayout?.tokenDiameter ?? 0
                         let emphasis = pinballSeatEmphasis(seat)
                         NumberedChitView(
                             number: seat.id,
