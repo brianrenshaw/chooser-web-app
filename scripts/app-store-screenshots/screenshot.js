@@ -1,7 +1,21 @@
+// NOTE (1.1): these posters are superseded by real device captures — see
+// scripts/capture-screenshots.sh and AppUITests/ScreenshotUITests. Kept as the
+// repo's record of the copy that shipped with 1.0, and corrected here so the
+// text is never reused as-is:
+//
+//   * "Use one finger to touch the iPhone." was device-specific, and the
+//     phrasing reads badly out of context.
+//   * "No preselected winner—the final resting place decides." was **wrong**.
+//     The winner is drawn by secure randomness BEFORE any path is solved; that
+//     is precisely what makes the odds exactly 1/N, and it is what the App
+//     Review notes describe. The visible endpoint agrees with the draw because
+//     the path is constructed to end there, not because the landing decides it.
+//     This line shipped on the live App Store and contradicts the disclosure.
+//
 (() => {
   const slides = {
     everyone: {
-      headline: 'Use one finger to touch the iPhone.',
+      headline: 'Everyone puts one finger on the screen.',
       subhead: 'Everyone joins the same quick, shared choice.',
       mode: 'together',
       rings: [
@@ -44,7 +58,7 @@
     },
     'pinball-run': {
       headline: 'A real path. A real landing.',
-      subhead: 'No preselected winner—the final resting place decides.',
+      subhead: 'Every seat has exactly the same odds, and the ball shows you.',
       mode: 'pinball',
       pinball: 'run',
       pinballTitle: 'Pinball!',
@@ -62,7 +76,7 @@
     },
     about: {
       headline: 'Private. Offline. No accounts.',
-      subhead: 'Everything happens on this iPhone—no ads or tracking.',
+      subhead: 'Everything happens on your device—no ads or tracking.',
       mode: 'together',
       rings: [],
       about: true,

@@ -732,10 +732,12 @@ public final class NativeAnalyticPolylineReplayScene: SKScene {
 
         for (index, mark) in marks {
             guard index > 0, index < points.count - 1 else { continue }
-            // A deflector is authored on a wall and can never also be a bumper.
-            // Skipping keeps a future change to the splice degrading to today's
-            // behaviour instead of drawing a ring on the playfield border.
-            if rawPlan?.fairnessDeflectorVertexIndex == index { continue }
+            // A deflector used to be a wall by construction. It can now also be
+            // a seat ring — that is what makes every region reachable from a
+            // weak flick — so the mark is applied here rather than skipped, and
+            // the ring the ball kicks off lights exactly like any other strike.
+            // Tagging at the impact site still marks it as the fairness
+            // deflection, so its distinct cue is unchanged.
 
             let contactPoint = points[index]
             let sceneCenter = pointMapper(mark.center, size)
@@ -802,6 +804,14 @@ public final class NativeAnalyticPolylineReplayScene: SKScene {
               index > 0,
               index < points.count - 1,
               !impacts.contains(where: { $0.vertexIndex == index }) else { return }
+
+        // This synthesises a *wall* impact, and the deflector is no longer
+        // guaranteed to be on a wall. A seat-ring deflection in open play would
+        // otherwise be drawn as an edge flex against whichever border happened
+        // to be nearest, which is the wrong place entirely. A presentation that
+        // carries no bumper marks reaches here with no impact to tag; skipping
+        // is correct, because there is no wall to flex.
+        guard isOnBoundary(points[index]) else { return }
 
         var cumulativeLengths = [CGFloat](repeating: 0, count: points.count)
         for pointIndex in 1..<points.count {
@@ -1266,6 +1276,16 @@ public final class NativeAnalyticPolylineReplayScene: SKScene {
 
     private func orderedEdges(_ edges: Set<PolylineImpactEdge>) -> [PolylineImpactEdge] {
         [.left, .right, .top, .bottom].filter(edges.contains)
+    }
+
+    /// Whether a point actually sits on the playfield border, within the
+    /// tolerance the marcher's own Minkowski inflation implies.
+    private func isOnBoundary(_ point: CGPoint) -> Bool {
+        let tolerance = boardMetrics.ballRadius + 2
+        return min(
+            min(point.x, size.width - point.x),
+            min(point.y, size.height - point.y)
+        ) <= tolerance
     }
 
     private func nearestEdge(to point: CGPoint) -> PolylineImpactEdge {

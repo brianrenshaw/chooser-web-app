@@ -457,12 +457,25 @@ public final class ChooserAppModel {
         //    during a critical interaction, so a mode change cannot land here
         //    mid-flight.
         guard confirmation == nil, !isCriticalInteractionActive else { return }
-        // 3. The welcome outranks any per-mode card.
+        // 3. The welcome outranks everything else.
         guard seenOnboardingMoments.contains(.welcome) else {
             presentedOnboarding = .welcome
             return
         }
-        // 4. Otherwise introduce the mode being entered, once.
+        // 4. Someone who has seen the welcome has used a previous build, so a
+        //    release note is for them and not for a first-time user. This is
+        //    the one reliable way to tell an upgrade from a fresh install:
+        //    `loadSeenMoments` is a pure read, so an empty set genuinely means
+        //    "never been here", where the launch-default-mode key writes during
+        //    its own read and cannot distinguish the two.
+        let whatsNew = OnboardingMoment.whatsNew(
+            release: OnboardingMoment.currentWhatsNewRelease
+        )
+        guard seenOnboardingMoments.contains(whatsNew) else {
+            presentedOnboarding = whatsNew
+            return
+        }
+        // 5. Otherwise introduce the mode being entered, once.
         guard !seenOnboardingMoments.contains(.modeCard(mode)) else { return }
         presentedOnboarding = .modeCard(mode)
     }
@@ -475,9 +488,18 @@ public final class ChooserAppModel {
         guard let moment = presentedOnboarding else { return }
         switch moment {
         case .welcome:
-            markOnboardingMomentsSeen([.welcome, .modeCard(mode)])
+            // Retiring the welcome also retires this release's note. A person
+            // meeting the app for the first time on 1.1 has nothing to catch up
+            // on, and following the carousel with "what's new" would be absurd.
+            markOnboardingMomentsSeen([
+                .welcome,
+                .modeCard(mode),
+                .whatsNew(release: OnboardingMoment.currentWhatsNewRelease)
+            ])
         case .modeCard(let cardMode):
             markOnboardingMomentsSeen([.modeCard(cardMode)])
+        case .whatsNew(let release):
+            markOnboardingMomentsSeen([.whatsNew(release: release)])
         }
         presentedOnboarding = nil
         feedback.play(.confirmation)

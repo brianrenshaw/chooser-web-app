@@ -148,16 +148,33 @@ enum PinballSpecularFlickResolver {
     /// winner is therefore verified against the exact path that will be
     /// rendered, never inferred.
     ///
-    /// The deflection is tried at the first wall, then at each later wall in
-    /// turn. That is a fairness requirement, not a convenience. A dense bumper
-    /// field leaves some regions unreachable from a given wall contact, and
-    /// which regions those are depends on the geometry. Because a failed round
-    /// is discarded and the player simply flicks again — drawing a fresh
-    /// winner — a region-dependent failure rate is rejection sampling, and it
-    /// silently biases the odds away from hard-to-reach seats. Measured over
-    /// forced-winner trials, per-region failure rates differed by about two to
-    /// one. Searching later walls removes the rejection, which is what keeps
-    /// the completed-round distribution uniform.
+    /// The deflection is tried at each wall in turn, and then at each seat ring
+    /// in turn. That is a fairness requirement, not a convenience. Because a
+    /// failed round is discarded and the player simply flicks again — drawing a
+    /// fresh winner — a region-dependent failure rate is rejection sampling,
+    /// and it silently biases the odds away from hard-to-reach seats.
+    ///
+    /// ## Why seat rings, and not simply a deeper wall search
+    ///
+    /// Fix a contact point and the distance left to travel, and the endpoint is
+    /// a continuous function of the outgoing angle — bumpers shatter it into
+    /// pieces, but its image is still a **one-dimensional curve** on a
+    /// two-dimensional board. A curve misses most of the board, so one contact
+    /// reaches only some regions, and sampling that same curve more finely
+    /// cannot enlarge its image. Both of those predictions were tested, and
+    /// both held exactly: raising the wall limit from 8 to 16 and doubling the
+    /// angle sweep from 1440 to 2880 each changed the measured unreachable
+    /// count by zero, on every board.
+    ///
+    /// The only lever that adds coverage is more curves, which means more
+    /// contacts. Walls are the scarce resource precisely where it hurts: the
+    /// flicks that fail are weak ones, and a weak flick on a 440x752 board
+    /// averages 5.6 wall contacts — it runs out of walls, not of budget. The
+    /// same flick strikes 13 to 23 seat rings. Those are the curves this needs.
+    ///
+    /// Walls are still tried first, so a round that could always have flexed a
+    /// wall still does and looks exactly as it did. A seat ring deflects only
+    /// when no wall can reach the drawn region at all.
     private static func bumperDeflectedResult(
         releasePoint: CGPoint,
         committedDirection: CGVector,
@@ -170,9 +187,12 @@ enum PinballSpecularFlickResolver {
         // Bumpers struck on the way are ordinary specular bounces, so the
         // deflection always lands on a wall, where the authored flex artwork
         // belongs. Try each wall in turn until one can reach the drawn region.
-        for wallOrdinal in 1...maximumDeflectionWallOrdinal {
+        var sites = (1...maximumDeflectionWallOrdinal).map(PinballDeflectorSite.wall)
+        sites += (1...maximumDeflectionBumperOrdinal).map(PinballDeflectorSite.bumper)
+
+        for site in sites {
             if let candidate = try deflectedResult(
-                atWallOrdinal: wallOrdinal,
+                at: site,
                 releasePoint: releasePoint,
                 committedDirection: committedDirection,
                 totalDistance: totalDistance,
@@ -190,13 +210,18 @@ enum PinballSpecularFlickResolver {
         throw PinballMathError.specularTrajectoryUnavailable
     }
 
-    /// How many walls deep the deflection search goes before failing closed.
+    /// How many walls deep the deflection search goes before trying seat rings.
     private static let maximumDeflectionWallOrdinal = 8
 
-    /// One deflection attempt at a specific wall. `nil` means that wall cannot
-    /// reach the selected region, and the caller tries the next one.
+    /// How many seat-ring contacts deep the search goes before failing closed.
+    /// A weak flick strikes 13 to 23 of them, so this is a budget rather than a
+    /// limit that binds.
+    private static let maximumDeflectionBumperOrdinal = 12
+
+    /// One deflection attempt at a specific contact. `nil` means that contact
+    /// cannot reach the selected region, and the caller tries the next one.
     private static func deflectedResult(
-        atWallOrdinal wallOrdinal: Int,
+        at site: PinballDeflectorSite,
         releasePoint: CGPoint,
         committedDirection: CGVector,
         totalDistance: CGFloat,
@@ -205,8 +230,8 @@ enum PinballSpecularFlickResolver {
         bumpers: PinballBumperField,
         maximumSegments: Int
     ) throws -> PinballRoundResult? {
-        let prefix = try marchToWall(
-            ordinal: wallOrdinal,
+        let prefix = try marchToContact(
+            site: site,
             from: releasePoint,
             direction: committedDirection,
             limit: totalDistance,
@@ -220,7 +245,7 @@ enum PinballSpecularFlickResolver {
         let suffixDistance = totalDistance - prefix.travelled
         let naturalOutgoing = PinballBumperGeometry.reflect(
             prefix.incoming,
-            about: prefix.wallNormal
+            about: prefix.deflectorNormal
         )
 
         var best: (score: CGFloat, trajectory: PinballTrajectory)?
@@ -229,7 +254,8 @@ enum PinballSpecularFlickResolver {
             let angle = CGFloat(step) * 2 * .pi / CGFloat(bumperSweepSteps)
             let candidate = CGVector(dx: cos(angle), dy: sin(angle))
             // Must leave the wall, not burrow into it.
-            let inward = candidate.dx * prefix.wallNormal.dx + candidate.dy * prefix.wallNormal.dy
+            let inward = candidate.dx * prefix.deflectorNormal.dx
+                + candidate.dy * prefix.deflectorNormal.dy
             guard inward > 1e-4 else { continue }
 
             guard let launch = try? PinballLaunch(
@@ -273,8 +299,8 @@ enum PinballSpecularFlickResolver {
                 )
             )
         }
-        // The deflecting wall itself, then the suffix's own ordinary vertices.
-        vertexKinds.append(.wall(normal: prefix.wallNormal))
+        // The deflecting contact itself, then the suffix's own ordinary vertices.
+        vertexKinds.append(prefix.deflectorKind)
         vertexKinds.append(contentsOf: best.trajectory.vertexKinds)
 
         let launch = try PinballLaunch(
@@ -304,21 +330,29 @@ enum PinballSpecularFlickResolver {
         )
     }
 
+    /// Where the single fairness deflection happens.
+    private enum PinballDeflectorSite {
+        case wall(ordinal: Int)
+        case bumper(ordinal: Int)
+    }
+
     private struct BumperPrefix {
         let segments: [PinballPathSegment]
         let vertexKinds: [PinballPathVertexKind]
         let contact: CGPoint
         let incoming: CGVector
-        let wallNormal: CGVector
+        let deflectorNormal: CGVector
+        let deflectorKind: PinballPathVertexKind
         let travelled: CGFloat
     }
 
-    /// Marches the committed flick until it touches its `wallOrdinal`-th wall,
-    /// bouncing off any bumpers on the way. Walls before that ordinal are
-    /// ordinary specular bounces. Returns nil when that many walls are not
-    /// reached within the launch distance.
-    private static func marchToWall(
-        ordinal wallOrdinal: Int,
+    /// Marches the committed flick until it reaches the requested contact,
+    /// bouncing specularly off everything on the way. Returns nil when that
+    /// contact is not reached within the launch distance — which is the common
+    /// case for a weak flick and a high ordinal, and is exactly why the search
+    /// tries many sites rather than assuming one exists.
+    private static func marchToContact(
+        site: PinballDeflectorSite,
         from start: CGPoint,
         direction: CGVector,
         limit: CGFloat,
@@ -327,6 +361,7 @@ enum PinballSpecularFlickResolver {
         maximumSegments: Int
     ) throws -> BumperPrefix? {
         var wallsPassed = 0
+        var bumpersPassed = 0
         let epsilon = max(1e-7, max(bounds.width, bounds.height) * 1e-9)
         var position = start
         var heading = direction
@@ -372,6 +407,21 @@ enum PinballSpecularFlickResolver {
                         endDistance: travelled + bumperDistance
                     )
                 )
+                bumpersPassed += 1
+                if case .bumper(let ordinal) = site, bumpersPassed == ordinal {
+                    return BumperPrefix(
+                        segments: segments,
+                        vertexKinds: vertexKinds,
+                        contact: contact,
+                        incoming: heading,
+                        deflectorNormal: bumper.normal,
+                        deflectorKind: .bumper(
+                            seatID: bumper.bumper.seatID,
+                            normal: bumper.normal
+                        ),
+                        travelled: travelled + bumperDistance
+                    )
+                }
                 vertexKinds.append(.bumper(seatID: bumper.bumper.seatID, normal: bumper.normal))
                 heading = PinballBumperGeometry.reflect(heading, about: bumper.normal)
                 position = contact
@@ -394,23 +444,24 @@ enum PinballSpecularFlickResolver {
             )
 
             wallsPassed += 1
-            if wallsPassed < wallOrdinal {
-                // Not the deflecting wall yet: an ordinary specular bounce.
-                vertexKinds.append(.wall(normal: wall.normal))
-                heading = PinballBumperGeometry.reflect(heading, about: wall.normal)
-                position = contact
-                travelled += wallDistance
-                continue
+            if case .wall(let ordinal) = site, wallsPassed == ordinal {
+                return BumperPrefix(
+                    segments: segments,
+                    vertexKinds: vertexKinds,
+                    contact: contact,
+                    incoming: heading,
+                    deflectorNormal: wall.normal,
+                    deflectorKind: .wall(normal: wall.normal),
+                    travelled: travelled + wallDistance
+                )
             }
 
-            return BumperPrefix(
-                segments: segments,
-                vertexKinds: vertexKinds,
-                contact: contact,
-                incoming: heading,
-                wallNormal: wall.normal,
-                travelled: travelled + wallDistance
-            )
+            // Not the deflecting contact: an ordinary specular bounce.
+            vertexKinds.append(.wall(normal: wall.normal))
+            heading = PinballBumperGeometry.reflect(heading, about: wall.normal)
+            position = contact
+            travelled += wallDistance
+            continue
         }
 
         return nil

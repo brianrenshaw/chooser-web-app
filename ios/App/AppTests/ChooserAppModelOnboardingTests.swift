@@ -11,6 +11,16 @@ final class ChooserAppModelOnboardingTests: XCTestCase {
         tapInCore: TapInChooserCore = TapInChooserCore(),
         feedback: RecordingFeedbackCoordinator = RecordingFeedbackCoordinator()
     ) -> (ChooserAppModel, MemoryOnboardingProgressStore, RecordingFeedbackCoordinator) {
+        // Anyone who has seen the welcome has, in a 1.1 world, also met this
+        // release's note — it is presented immediately after the welcome and
+        // before any mode card. Seeding it keeps these tests about the thing
+        // they are actually testing instead of re-asserting the note's
+        // precedence eleven times over. `ChooserAppModelWhatsNewTests` owns
+        // that precedence.
+        var seen = seen
+        if seen.contains(.welcome) {
+            seen.insert(.whatsNew(release: OnboardingMoment.currentWhatsNewRelease))
+        }
         let store = onboardingStore ?? MemoryOnboardingProgressStore(storedMoments: seen)
         let model = ChooserAppModel(
             modeStore: MemoryLaunchDefaultModeStore(storedMode: mode),
@@ -40,9 +50,17 @@ final class ChooserAppModelOnboardingTests: XCTestCase {
         model.completeOnboarding()
 
         XCTAssertNil(model.presentedOnboarding)
-        XCTAssertEqual(store.storedMoments, [.welcome, .modeCard(.together)])
+        // Finishing the welcome also retires this release's note, so a first
+        // time user is not handed "what's new" about a version they started on.
+        XCTAssertEqual(
+            store.storedMoments,
+            [.welcome, .modeCard(.together), .whatsNew(release: OnboardingMoment.currentWhatsNewRelease)]
+        )
         // One user action is exactly one write.
-        XCTAssertEqual(store.savedMomentSets, [[.welcome, .modeCard(.together)]])
+        XCTAssertEqual(
+            store.savedMomentSets,
+            [[.welcome, .modeCard(.together), .whatsNew(release: OnboardingMoment.currentWhatsNewRelease)]]
+        )
     }
 
     func testSkippingTheWelcomeWritesTheSameProgressAsFinishingIt() {
@@ -79,7 +97,15 @@ final class ChooserAppModelOnboardingTests: XCTestCase {
         XCTAssertEqual(model.presentedOnboarding, .modeCard(.tapIn))
 
         model.completeOnboarding()
-        XCTAssertEqual(store.storedMoments, [.welcome, .modeCard(.together), .modeCard(.tapIn)])
+        XCTAssertEqual(
+            store.storedMoments,
+            [
+                .welcome,
+                .modeCard(.together),
+                .modeCard(.tapIn),
+                .whatsNew(release: OnboardingMoment.currentWhatsNewRelease)
+            ]
+        )
 
         model.requestModeChange(to: .pinball)
         model.completeOnboarding()
@@ -98,7 +124,7 @@ final class ChooserAppModelOnboardingTests: XCTestCase {
     }
 
     func testAFullySeenOnboardingNeverPresentsOrWritesAgain() {
-        let (model, store, _) = makeModel(seen: Set(OnboardingMoment.all))
+        let (model, store, _) = makeModel(seen: Set(OnboardingMoment.allIncludingCurrentWhatsNew))
 
         model.startOnboardingIfNeeded()
         XCTAssertNil(model.presentedOnboarding)
@@ -120,7 +146,10 @@ final class ChooserAppModelOnboardingTests: XCTestCase {
         model.tapInTouchBegan(.init(id: 4, location: CGPoint(x: 100, y: 140)))
 
         XCTAssertNil(model.presentedOnboarding)
-        XCTAssertEqual(store.storedMoments, [.welcome, .modeCard(.tapIn)])
+        XCTAssertEqual(
+            store.storedMoments,
+            [.welcome, .modeCard(.tapIn), .whatsNew(release: OnboardingMoment.currentWhatsNewRelease)]
+        )
     }
 
     // MARK: - Deep links
@@ -136,7 +165,10 @@ final class ChooserAppModelOnboardingTests: XCTestCase {
         XCTAssertEqual(model.mode, .pinball, "the shortcut must still be honoured")
 
         model.completeOnboarding()
-        XCTAssertEqual(store.storedMoments, [.welcome, .modeCard(.pinball)])
+        XCTAssertEqual(
+            store.storedMoments,
+            [.welcome, .modeCard(.pinball), .whatsNew(release: OnboardingMoment.currentWhatsNewRelease)]
+        )
 
         // Chooser was never actually shown, so it still earns its card.
         model.requestModeChange(to: .together)
@@ -211,7 +243,7 @@ final class ChooserAppModelOnboardingTests: XCTestCase {
     // MARK: - Replay
 
     func testReplayingTheWelcomeFromSettingsWritesNothingAndRestoresNoModeCards() {
-        let (model, store, _) = makeModel(seen: Set(OnboardingMoment.all))
+        let (model, store, _) = makeModel(seen: Set(OnboardingMoment.allIncludingCurrentWhatsNew))
 
         model.requestWelcomeReplay()
         model.presentWelcomeReplayIfRequested()
@@ -228,7 +260,7 @@ final class ChooserAppModelOnboardingTests: XCTestCase {
     }
 
     func testAReplayRequestIsConsumedExactlyOnce() {
-        let (model, _, _) = makeModel(seen: Set(OnboardingMoment.all))
+        let (model, _, _) = makeModel(seen: Set(OnboardingMoment.allIncludingCurrentWhatsNew))
 
         model.requestWelcomeReplay()
         model.presentWelcomeReplayIfRequested()
@@ -264,5 +296,92 @@ final class ChooserAppModelOnboardingTests: XCTestCase {
 
         XCTAssertEqual(model.presentedOnboarding, .welcome)
         XCTAssertNil(model.presentedModeIntroPage)
+    }
+}
+
+/// The release note is for people who already know the app.
+///
+/// The distinction it depends on — upgrade versus fresh install — is only
+/// available because `loadSeenMoments` is a pure read. The launch-default-mode
+/// store writes during its own read to perform a migration, which is precisely
+/// why that key cannot tell the two apart.
+@MainActor
+final class ChooserAppModelWhatsNewTests: XCTestCase {
+
+    private var currentWhatsNew: OnboardingMoment {
+        .whatsNew(release: OnboardingMoment.currentWhatsNewRelease)
+    }
+
+    private func makeModel(
+        seen: Set<OnboardingMoment>
+    ) -> (ChooserAppModel, MemoryOnboardingProgressStore, RecordingFeedbackCoordinator) {
+        let store = MemoryOnboardingProgressStore(storedMoments: seen)
+        let feedback = RecordingFeedbackCoordinator()
+        let model = ChooserAppModel(
+            modeStore: MemoryLaunchDefaultModeStore(storedMode: .together),
+            onboardingStore: store,
+            feedback: feedback
+        )
+        return (model, store, feedback)
+    }
+
+    func testAFreshInstallSeesTheWelcomeAndNeverTheReleaseNote() {
+        let (model, store, _) = makeModel(seen: [])
+        model.startOnboardingIfNeeded()
+        XCTAssertEqual(model.presentedOnboarding, .welcome)
+
+        model.completeOnboarding()
+        // Finishing the welcome retires this release's note in the same write:
+        // someone meeting the app on 1.1 has nothing to catch up on.
+        XCTAssertTrue(store.storedMoments.contains(currentWhatsNew))
+
+        model.startOnboardingIfNeeded()
+        XCTAssertNil(model.presentedOnboarding)
+    }
+
+    func testAnUpgraderSeesTheReleaseNoteOnce() {
+        let (model, store, _) = makeModel(seen: Set(OnboardingMoment.all))
+        model.startOnboardingIfNeeded()
+        XCTAssertEqual(model.presentedOnboarding, currentWhatsNew)
+
+        model.completeOnboarding()
+        XCTAssertNil(model.presentedOnboarding)
+        XCTAssertTrue(store.storedMoments.contains(currentWhatsNew))
+
+        model.startOnboardingIfNeeded()
+        XCTAssertNil(model.presentedOnboarding, "the note must not return")
+    }
+
+    func testTheWelcomeStillOutranksTheReleaseNote() {
+        let (model, _, _) = makeModel(seen: [currentWhatsNew])
+        model.startOnboardingIfNeeded()
+        XCTAssertEqual(model.presentedOnboarding, .welcome)
+    }
+
+    func testAFutureReleaseNoteIsADifferentMoment() {
+        let (model, _, _) = makeModel(
+            seen: Set(OnboardingMoment.all).union([.whatsNew(release: "1.0")])
+        )
+        model.startOnboardingIfNeeded()
+        XCTAssertEqual(
+            model.presentedOnboarding,
+            currentWhatsNew,
+            "a note stored for an older release must not satisfy this one"
+        )
+    }
+
+    func testTheReleaseTokenRoundTrips() {
+        let moment = OnboardingMoment.whatsNew(release: "1.1")
+        XCTAssertEqual(moment.persistenceToken, "whatsNew.1.1")
+        XCTAssertEqual(OnboardingMoment(persistenceToken: "whatsNew.1.1"), moment)
+        XCTAssertNil(OnboardingMoment(persistenceToken: "whatsNew."))
+    }
+
+    /// `all` means "has seen the introduction". A release note is not part of
+    /// an introduction, and folding it in would silently change what every test
+    /// seeding `all` is asserting about.
+    func testAllExcludesTheReleaseNote() {
+        XCTAssertFalse(OnboardingMoment.all.contains(currentWhatsNew))
+        XCTAssertTrue(OnboardingMoment.allIncludingCurrentWhatsNew.contains(currentWhatsNew))
     }
 }

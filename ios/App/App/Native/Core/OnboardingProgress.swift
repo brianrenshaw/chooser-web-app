@@ -9,6 +9,10 @@ public enum OnboardingMoment: Hashable, Identifiable, Sendable {
     case welcome
     /// The one-time card shown the first time a given mode is opened.
     case modeCard(AppMode)
+    /// The one-time "what's new" sheet for a release, shown to people who
+    /// already know the app. Carries the release it belongs to, so a later one
+    /// is a different moment and shows again.
+    case whatsNew(release: String)
 
     public var id: String { persistenceToken }
 
@@ -18,12 +22,20 @@ public enum OnboardingMoment: Hashable, Identifiable, Sendable {
         switch self {
         case .welcome: "welcome"
         case .modeCard(let mode): "mode.\(mode.rawValue)"
+        case .whatsNew(let release): "whatsNew.\(release)"
         }
     }
 
     public init?(persistenceToken: String) {
         if persistenceToken == "welcome" {
             self = .welcome
+            return
+        }
+        let whatsNewPrefix = "whatsNew."
+        if persistenceToken.hasPrefix(whatsNewPrefix) {
+            let release = String(persistenceToken.dropFirst(whatsNewPrefix.count))
+            guard !release.isEmpty else { return nil }
+            self = .whatsNew(release: release)
             return
         }
         let prefix = "mode."
@@ -33,8 +45,25 @@ public enum OnboardingMoment: Hashable, Identifiable, Sendable {
         self = .modeCard(mode)
     }
 
+    /// The release whose "what's new" sheet this build presents.
+    ///
+    /// Deliberately a literal rather than `CFBundleShortVersionString`: a build
+    /// number bump or a hotfix must not silently re-present the sheet, and the
+    /// copy is written for a specific release. Change it when there is new copy
+    /// to show, and not otherwise.
+    public static let currentWhatsNewRelease = "1.1"
+
+    /// Every first-run moment. Deliberately **excludes** `whatsNew`: this is
+    /// the set that means "has seen the introduction", and a release note is
+    /// not part of an introduction. Tests that seed it are describing an
+    /// experienced user, which is exactly who the what's-new sheet is for.
     public static let all: [OnboardingMoment] =
         [.welcome] + AppMode.allCases.map(OnboardingMoment.modeCard)
+
+    /// The introduction plus this build's release note — a user who should be
+    /// shown nothing at all.
+    public static let allIncludingCurrentWhatsNew: [OnboardingMoment] =
+        all + [.whatsNew(release: currentWhatsNewRelease)]
 }
 
 /// Which parts of the first-run introduction a person has already seen.

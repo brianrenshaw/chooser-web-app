@@ -28,9 +28,15 @@ final class PinballAspectRatioFairnessTests: XCTestCase {
         }
     }
 
+    // One board per distinct *shape*, not per device.
+    //
+    // Letterboxing sends every full-screen iPad board to the reference ratio,
+    // so an 11-inch portrait, an 11-inch landscape and a 13-inch portrait all
+    // become 1.79 boards differing only in scale — and scale is provably free.
+    // Running all three costs a third of the suite's wall clock to re-test the
+    // same dimensionless configuration three times, which is how this suite
+    // grew heavy enough to be killed under load.
     private let boards = [
-        Board(name: "iPad 11 portrait", size: CGSize(width: 820, height: 1000)),
-        Board(name: "iPad 11 landscape", size: CGSize(width: 1180, height: 820)),
         Board(name: "iPad 13 portrait", size: CGSize(width: 1024, height: 1266)),
         Board(name: "Slide Over", size: CGSize(width: 320, height: 1000)),
         // Two phones, not the whole lineup: the Pro Max is the ceiling — the

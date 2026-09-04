@@ -17,7 +17,8 @@ final class WhosFirstLaunchUITests: XCTestCase {
             // WhosFirstUITests' helper, so it needs its own onboarding
             // suppression or the first-run cover hides the toolbar below.
             "-chooser.onboarding.version", "1",
-            "-chooser.onboarding", "(welcome, mode.together, mode.tapIn, mode.pinball)"
+            "-chooser.onboarding",
+            "(welcome, mode.together, mode.tapIn, mode.pinball, whatsNew.1.1)"
         ]
         app.launch()
 

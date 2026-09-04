@@ -1,0 +1,71 @@
+Who's First? Decide Together — App Review notes, version 1.1
+
+WHAT CHANGED IN 1.1
+
+iPad support. The app now ships for iPhone and iPad. This is a designed
+layout rather than a stretched phone: Chooser rings, Tap In chits, Pinball
+seats, the ball, and the ball's flight duration all scale with the board,
+and onboarding chooses a one- or two-column page from the page's real
+geometry. iPad is visual only. There is no Taptic Engine on iPad, and no
+audio or haptic behaviour was added for it; the in-app Haptics and sound
+screen states this directly.
+
+Pinball's fairness mechanism is unchanged in kind and slightly widened in
+where it can happen. Please read the paragraph below in place of the
+Build 18 wording.
+
+PINBALL FAIRNESS — CURRENT AND COMPLETE
+
+Place the device flat and have 2 to 12 people tap nearest where they are
+seated. Thin centre-to-edge rays show exact equal-area ownership. Once a
+live gesture crosses the flick thresholds the ball appears directly under
+the finger and follows it through release. The collision-safe clamped
+release point becomes the exact analytic origin and the committed vector
+the exact first leg.
+
+Only after those player-controlled values are fixed does secure on-device
+randomness select one equal-area region with probability exactly 1/N. The
+winner is therefore drawn before any path is solved, and it is never
+redrawn to make a path easier to find; if no path can be constructed the
+round fails closed and the player simply flicks again.
+
+The app first evaluates the ordinary reflected path. If its endpoint
+already lies in the selected region, the path is unchanged and there is no
+special effect. Otherwise exactly one contact on the path visibly curves,
+compresses and rebounds once, redirecting the ball onto a genuine
+reflected suffix that ends inside the selected region. A distinct springy
+haptic matches that flex on hardware that provides one.
+
+That flexing contact is a localized theme-colored section of a wall
+wherever a wall on the path can reach the selected region. Where no wall
+can, it is a seat ring the ball kicks off, which lights exactly as any
+struck ring does. Walls are searched before seat rings, so a round that
+could flex a wall always flexes a wall.
+
+There is no text overlay, no hidden spawn, and no later steering. Every
+other bounce is an ordinary specular reflection. The visible endpoint and
+its two enclosing divider rays identify the same seat, so where the ball
+stops owns the result, and render timing cannot change it.
+
+WHY SEAT RINGS WERE ADDED
+
+Fix a contact point and the distance left to travel, and the endpoint is a
+one-dimensional curve on a two-dimensional board, so a single contact can
+reach only some regions. A weak flick makes few wall contacts — about 5.6
+on a 440x752 board — but strikes 13 to 23 seat rings. Before 1.1 some
+regions were unreachable from some flicks. Because a failed round is
+discarded and the next flick draws a fresh winner, a region-dependent
+failure rate is rejection sampling and biases completed-round odds against
+hard-to-reach seats. Searching seat rings removes it: measured over 2464
+forced-winner trials per board, unreachable region/flick pairs went from
+58 to 0 on iPhone 17 Pro Max and from 22 to 0 on a 13-inch iPad.
+
+TESTING NOTES
+
+A physical multi-touch device is required to fully test Chooser and the
+three-finger colour shuffle. A physical iPhone is additionally required for
+the Core Haptics cues, which iPad hardware does not provide. The app works
+entirely offline, has no accounts, purchases, advertising, analytics, or
+tracking, and stores only the preferred launch mode, the selected visual
+world, a nonpersonal migration marker, and which one-time introduction
+screens have been seen.

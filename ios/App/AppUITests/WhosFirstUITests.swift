@@ -822,7 +822,13 @@ final class WhosFirstUITests: XCTestCase {
             // every existing test, since each one launches a fresh install.
             arguments += [
                 "-chooser.onboarding.version", "1",
-                "-chooser.onboarding", "(welcome, mode.together, mode.tapIn, mode.pinball)"
+                // `whatsNew.1.1` belongs here for the same reason the rest do:
+                // without it every test would meet the release note instead of
+                // the board. The literal must track
+                // `OnboardingMoment.currentWhatsNewRelease`; this target cannot
+                // import the app module to read it.
+                "-chooser.onboarding",
+                "(welcome, mode.together, mode.tapIn, mode.pinball, whatsNew.1.1)"
             ]
         } else {
             // Version 0 fails the store's gate, so any progress a previous test

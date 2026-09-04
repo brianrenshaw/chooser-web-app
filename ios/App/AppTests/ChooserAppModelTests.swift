@@ -628,9 +628,24 @@ final class ChooserAppModelTests: XCTestCase {
     ///
     /// Release points are off centre, as a real fingertip is.
     func testRepeatedFlicksAlwaysLaunchARound() throws {
+        // Per size, never pooled. A pooled rate would let a bad board hide
+        // behind three clean ones, which is precisely the failure mode this
+        // exists to catch.
+        let sizes: [(String, CGSize)] = [
+            ("reference", CGSize(width: 390, height: 700)),
+            ("Pro Max", CGSize(width: 440, height: 752)),
+            ("iPad 13 portrait", CGSize(width: 1024, height: 1266)),
+            ("Slide Over", CGSize(width: 320, height: 1000))
+        ]
+        for (name, proposed) in sizes {
+            try assertFlicksLaunch(on: proposed, named: name)
+        }
+    }
+
+    private func assertFlicksLaunch(on proposed: CGSize, named name: String) throws {
         var failures: [String] = []
         var attempts = 0
-        let size = CGSize(width: 390, height: 700)
+        let size = PinballPlayfieldLetterbox.playfieldSize(fitting: proposed)
         for seatCount in 2...12 {
             for angleStep in 0..<16 {
                 let angle = (CGFloat(angleStep) + 0.5) * 2 * .pi / 16
@@ -660,23 +675,23 @@ final class ChooserAppModelTests: XCTestCase {
                 }
             }
         }
-        // Not zero. A dense bumper field can put the drawn region genuinely out
-        // of range of a weak flick, and the search fails closed rather than
-        // redrawing the winner. That is the correct trade: the player simply
-        // flicks again, from a different point in a different direction, and
-        // the next round is independent. Measured at roughly 1 in 500 under
-        // conditions harsher than real play — the evenly spaced accessibility
-        // layout, one fixed release point, and a swept angle grid.
+        // A bound rather than zero, deliberately. Since the deflection search
+        // gained seat-ring sites the measured rate is 0 on every board here,
+        // but the guarantee the code actually offers is "fails closed rather
+        // than redrawing the winner" — never "a path always exists". Asserting
+        // zero would pin an empirical result as a contract and turn any future
+        // geometry change into a mystery failure.
         //
-        // The bound is here to catch a regression that makes dead flicks
-        // common, not to pretend they never happen. Per-region fairness is
-        // guarded separately and exactly by
-        // PinballBumperTests.testEveryRegionIsReachableForEveryFlick.
+        // Per-region fairness — the property that actually matters, since a
+        // region-dependent failure rate plus re-flicking is rejection sampling
+        // — is guarded separately and exactly by
+        // PinballBumperTests.testEveryRegionIsReachableForEveryFlick and by
+        // PinballAspectRatioFairnessTests.
         let rate = Double(failures.count) / Double(attempts)
         XCTAssertLessThan(
             rate,
             0.01,
-            "Dead flicks became common (\(failures.count)/\(attempts)): \(failures)"
+            "\(name): dead flicks became common (\(failures.count)/\(attempts)): \(failures)"
         )
     }
 

@@ -104,7 +104,7 @@ public struct NativeOfflineInformationCopy: Sendable {
                     steps: [
                         "Add two to twelve seats around the playfield.",
                         "Flick across the playfield. Once the gesture becomes a flick, the ball appears under your finger and follows the exact release point and direction.",
-                        "If ordinary bounces already reach the fairly selected seat, the path stays natural. Otherwise the first wall visibly flexes once to redirect the ball so every seat keeps exactly the same chance.",
+                        "If ordinary bounces already reach the fairly selected seat, the path stays natural. Otherwise exactly one contact — a wall, or a seat ring the ball kicks off — visibly flexes once to redirect it, so every seat keeps exactly the same chance.",
                         "The equal-area region where the visible ball stops is the choice."
                     ]
                 )
@@ -114,7 +114,7 @@ public struct NativeOfflineInformationCopy: Sendable {
                     id: "feedback",
                     title: "Haptics and sound",
                     paragraphs: [
-                        "On hardware that supports it, native haptics carry the Chooser and Tap In anticipation and winner, and Pinball's one fair wall flex has its own distinct tactile cue. Where there is no Taptic Engine — iPad included — the same moments are carried visually. The winner remains silent; brief on-device sound is used only as an eligible fallback when Core Haptics is unavailable. System settings can reduce or disable feedback."
+                        "On hardware that supports it, native haptics carry the Chooser and Tap In anticipation and winner, and Pinball's one fair flex has its own distinct tactile cue. Where there is no Taptic Engine — iPad included — the same moments are carried visually. The winner remains silent; brief on-device sound is used only as an eligible fallback when Core Haptics is unavailable. System settings can reduce or disable feedback."
                     ]
                 ),
                 NativeInfoSection(

@@ -55,6 +55,22 @@ public struct TogetherModeView: View {
                         _ = model.randomizeColorTheme()
                     }
                     .accessibilityIdentifier("together-stage")
+                    #if DEBUG
+                    // Both, because whichever arrives with a real size first is
+                    // the one that seeds; the seed itself is idempotent.
+                    .onAppear {
+                        ChooserScreenshotSeed.seedIfRequested(
+                            model: model,
+                            playfieldSize: geometry.size
+                        )
+                    }
+                    .onChange(of: geometry.size) { _, size in
+                        ChooserScreenshotSeed.seedIfRequested(
+                            model: model,
+                            playfieldSize: size
+                        )
+                    }
+                    #endif
 
                     ChooserAnticipationKeyframes(
                         isActive: isCountdown,

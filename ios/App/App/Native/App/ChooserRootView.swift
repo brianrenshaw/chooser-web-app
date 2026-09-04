@@ -96,6 +96,21 @@ public struct ChooserRootView: View {
             // Presented OVER the board, never instead of it: replacing
             // ChooserRootView would unmount `.onOpenURL` and swallow an App
             // Shortcut's cold-launch deep link.
+            .sheet(item: whatsNewBinding) { _ in
+                NativeWhatsNewSheet(
+                    copy: .current,
+                    colorTheme: model.colorTheme,
+                    onDismiss: model.completeOnboarding
+                )
+                // A single page of release notes, so it takes the same
+                // presentation treatment as the carousel rather than a form:
+                // detent on a phone, page-shaped card on an iPad.
+                .presentationDetents([.large])
+                .presentationSizing(.page)
+                .presentationDragIndicator(.visible)
+                .presentationBackground(model.colorTheme.visualTheme.surfaceGradient)
+                .boardChromeMetrics()
+            }
             .sheet(item: welcomeBinding) { _ in
                 NativeWelcomeCarousel(
                     copy: .chooser(version: appVersion),
@@ -196,6 +211,20 @@ public struct ChooserRootView: View {
     private var welcomeBinding: Binding<OnboardingMoment?> {
         Binding(
             get: { model.presentedOnboarding == .welcome ? model.presentedOnboarding : nil },
+            set: { if $0 == nil { model.completeOnboarding() } }
+        )
+    }
+
+    /// Its own binding on its own anchor, for the same reason the welcome has
+    /// one: two `item:` sheets on a single anchor is the classic SwiftUI
+    /// presentation conflict. A swipe-dismiss must still write the seen flag,
+    /// or the note would return on every launch.
+    private var whatsNewBinding: Binding<OnboardingMoment?> {
+        Binding(
+            get: {
+                guard case .whatsNew = model.presentedOnboarding else { return nil }
+                return model.presentedOnboarding
+            },
             set: { if $0 == nil { model.completeOnboarding() } }
         )
     }
