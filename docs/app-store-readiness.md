@@ -1,10 +1,15 @@
 # Who's First? — App Store Readiness
 
-Last audited: August 31, 2026
+Last audited: September 6, 2026
 
 ## Bottom line
 
-Who's First? is a native, iPhone-only app built with SwiftUI and Swift 6. Build 18 / version 1.0 (18) is the submitted iOS 26 release. It retains Chooser, Tap In, Pinball, the native Liquid Glass toolbar, semantic accessibility layer, App Shortcuts, eight box-led surface/material worlds, and Build 17's direct-manipulation Pinball and tactile choice hierarchy.
+**Version 1.1 (build 19) is approved and live on the App Store.** It was submitted
+on September 4, 2026 and is `READY_FOR_SALE`; its review submission is `COMPLETE`.
+See [Version 1.1](#version-11--live) for what shipped and the identifiers.
+
+Who's First? is a native app for **iPhone and iPad**, built with SwiftUI and Swift 6.
+The history below describes Build 18 / version 1.0 (18), the previous release. It retains Chooser, Tap In, Pinball, the native Liquid Glass toolbar, semantic accessibility layer, App Shortcuts, eight box-led surface/material worlds, and Build 17's direct-manipulation Pinball and tactile choice hierarchy.
 
 Build 17 replaces Pinball's hidden post-release spawn with direct manipulation. Once a live gesture crosses the flick thresholds, the 30-point ball appears under the finger and follows it through release. The collision-safe clamped release point becomes the exact analytic origin, and the committed flick vector becomes the exact first leg. Only then does secure on-device randomness select one equal-area region with probability exactly `1/N`. The app first evaluates the ordinary reflected path. If it already ends in that region, the path stays completely natural. Otherwise, exactly one contact visibly curves, compresses, and rebounds once while redirecting the outgoing path toward the selected region; a distinct springy haptic matches the flex. As of 1.1 that contact is a wall section wherever a wall can reach the region, and otherwise a seat ring. There is no text overlay, hidden spawn, or later steering. Every later bounce is ordinary specular reflection, and the analytic endpoint remains the sole authority for winner identity.
 
@@ -12,7 +17,7 @@ Build 18 adds a window-level simultaneous three-finger tap that selects and save
 
 Build 18's 167 AppTests pass at `/tmp/whos-first-build18-final-tests/Logs/Test/Test-App-2026.08.31_13-40-17--0400.xcresult`, and its final AppUITest suite passes all 20 executions with zero failures or skips (`17 unique methods`: one launch method across four variants plus 16 regular) at `/tmp/whos-first-build18-shuffle-ui/Logs/Test/Test-App-2026.08.31_13-52-01--0400.xcresult`. Stable Icon Composer 1.6 exports Default, Dark, ClearLight, ClearDark, and TintedDark successfully; its Release simulator and development-signed arm64 Release builds pass, including strict/deep codesign. Version 1.0 (18) installed and launched successfully on BDR 17, `devicectl` confirmed its bundle/version/build identity, and the owner physically approved the installed candidate.
 
-The signed archive, export, and upload succeeded. Delivery `6eab8145-2197-4ef5-ac71-0254d3414f3e` processed as `VALID`, requires iOS 26, reports `usesNonExemptEncryption = false`, and replaced Build 4 on version 1.0. The six approved Build 18 screenshots, description, promotional text, review notes, and contact are applied. App Privacy is published as **Data Not Collected**, Free price `0.0` is confirmed, and DSA non-trader status is `Active` for all 27 EU territories. Review submission `076a4fc5-bcbd-4a33-a765-bcf923a723bc` was submitted at `2026-08-31T18:38:05.116Z`; it and version 1.0 are both `WAITING_FOR_REVIEW`, with release set to `AFTER_APPROVAL`. TestFlight was skipped because it is optional, not a submission prerequisite.
+The signed archive, export, and upload succeeded. Delivery `6eab8145-2197-4ef5-ac71-0254d3414f3e` processed as `VALID`, requires iOS 26, reports `usesNonExemptEncryption = false`, and replaced Build 4 on version 1.0. The six approved Build 18 screenshots, description, promotional text, review notes, and contact are applied. App Privacy is published as **Data Not Collected**, Free price `0.0` is confirmed, and DSA non-trader status is `Active` for all 27 EU territories. Review submission `076a4fc5-bcbd-4a33-a765-bcf923a723bc` was submitted at `2026-08-31T18:38:05.116Z`; version 1.0 is now `READY_FOR_SALE`. TestFlight was skipped because it is optional, not a submission prerequisite.
 
 Build 1 remains an older valid artifact that supports the original simultaneous mode only, and Build 3 and Build 4 remain historical processed releases. Build 4 was the prior version attachment before Build 18 replaced it. Local build 2 is superseded, and signed builds 9–17 are historical local checkpoints that were never uploaded. Internal TestFlight testing remains a useful optional path for a future build, but it was not used for this submission.
 
@@ -22,7 +27,70 @@ App `6806757289` has Build 18 attached to iOS version 1.0. The uploaded delivery
 
 All six approved Build 18 screenshots are `COMPLETE` 1320×2868 images in this order: Chooser, Tap In, Pinball seats, Pinball flight, Pinball result, Visual worlds. The old Build 4 screenshots were removed. The Build 18 description, promotional text, App Review notes, and contact are applied. App Privacy is published as **Data Not Collected**, Free price `0.0` is confirmed, and the DSA non-trader declaration is `Active` for all 27 selected EU territories; a final read reports zero `TRADER_STATUS_NOT_PROVIDED` territories.
 
-Review submission `076a4fc5-bcbd-4a33-a765-bcf923a723bc` contains item `MDc2YTRmYzUtYmNiZC00YTMzLWE3NjUtYmNmOTIzYTcyM2JjfDZ8ODkwNTMxNTUw` and was submitted at `2026-08-31T18:38:05.116Z`. Both the review submission and version are `WAITING_FOR_REVIEW`; the release setting remains `AFTER_APPROVAL`. TestFlight was intentionally skipped as the optional validation path.
+Review submission `076a4fc5-bcbd-4a33-a765-bcf923a723bc` contains item `MDc2YTRmYzUtYmNiZC00YTMzLWE3NjUtYmNmOTIzYTcyM2JjfDZ8ODkwNTMxNTUw` and was submitted at `2026-08-31T18:38:05.116Z`. That submission is `COMPLETE` and version 1.0 is `READY_FOR_SALE`; the release setting was `AFTER_APPROVAL`. TestFlight was intentionally skipped as the optional validation path.
+
+## Version 1.1 — live
+
+Submitted September 4, 2026 at `2026-09-04T14:03:47.468Z`; approved and
+`READY_FOR_SALE` by September 6, 2026. Release was set to `AFTER_APPROVAL`.
+
+| Field | Value |
+|---|---|
+| App Store version | 1.1 — `e15cb0c4-ad73-4ffc-8bca-7911f0c7a9c8` |
+| Build | 19 — delivery `7ac9d6ff-bd3e-49c5-b477-1eb337a67e71`, `VALID`, min iOS 26.0, `usesNonExemptEncryption = false` |
+| Review submission | `739ba897-758b-4f4f-a901-fca9f8074b6e`, state `COMPLETE` |
+| Localization (en-US) | `b7fb0f58-f886-4892-bf83-a5e332e5b067` |
+| iPhone screenshots | set `0978525b-18b9-4c58-9abb-e4248080c715`, `APP_IPHONE_67`, six `COMPLETE` at 1320×2868 |
+| iPad screenshots | set `273971a6-40a5-4ae9-b2db-32a9b8aab2fe`, `APP_IPAD_PRO_3GEN_129`, six `COMPLETE` at 2064×2752 |
+| Device family | `TARGETED_DEVICE_FAMILY = "1,2"`; all four iPad orientations |
+
+### What shipped
+
+- **iPad support**, designed rather than stretched. Board pieces, Pinball's seats
+  and ball, and the ball's flight all scale with the board. Pinball scales
+  linearly because a uniform scale is a similarity transform of its reachability
+  problem; Chooser and Tap In damp their growth, having no fairness constraint.
+  Onboarding decides its column count from the page's own geometry, replacing a
+  `verticalSizeClass == .compact` test that is never true on iPad.
+- **Pinball's deflection can occur at a seat ring**, not only at a wall. This
+  closed the last unreachable regions on every shipping board — including the
+  iPhone 17 Pro Max, which was the worst board in the lineup at 58 unreachable
+  region/flick pairs out of 2464 and had been since 1.0. Walls are still searched
+  first, so a round that could flex a wall still does.
+- **Pinball's playfield is letterboxed** to the reference board shape. Board
+  shape, unlike board size, changes which regions a flick can reach; the rule
+  leaves every iPhone byte-identical and is continuous, because a playfield that
+  changes size cancels a running round.
+- **A one-time release note** for upgraders, never shown on a fresh install.
+- **Seat rings light when struck**, and the replay view now persists across a
+  round's phase changes instead of being rebuilt twice as the ball stops.
+
+### Verification
+
+AppTests `259/259` on both an iPhone 17 Pro Max and an iPad Pro 13-inch.
+AppUITests `30/30` on iPad, with the four screenshot-capture tests skipped by
+design. Release archive, export, `codesign --deep --strict`, and installation on
+both BDR 17 and Brian's iPad passed, and the owner physically approved the
+candidate on both devices before submission.
+
+### Store metadata replaced, not inherited
+
+App Store Connect copies the previous version's metadata into a new version, and
+three inherited pieces were stale in ways that mattered. Each was replaced:
+
+- The description said visual worlds are "saved only on your iPhone".
+- The screenshots were the 1.0 posters, whose lead headline read "Use one finger
+  to touch the iPhone" — device-specific, and awkward out of context.
+- The App Review notes described an **iPhone-only** Build 18 whose deflection
+  happens at "the first wall", which was wrong on both counts. The 1.1 notes are
+  3,982 of the permitted 4,000 characters; the Pinball fairness mechanism is
+  stated in full and the mode walkthroughs were condensed to fit.
+
+Screenshots for 1.1 are **real device captures** produced by
+`scripts/capture-screenshots.sh`, which drives the app with real touches through
+`AppUITests/ScreenshotUITests`. They carry no headline text, unlike the 1.0
+posters. `scripts/app-store-screenshots/` is retained only as the record of the
+1.0 copy, and is marked superseded.
 
 ## Release identity
 
@@ -32,15 +100,15 @@ Review submission `076a4fc5-bcbd-4a33-a765-bcf923a723bc` contains item `MDc2YTRm
 | App Store record | Who's First? Decide Together |
 | On-device name | Who's First? |
 | Bundle identifier | com.brianrenshaw.fingerchooser |
-| Version | 1.1 (in development; 1.0 released on the App Store 2026-09-03) |
-| Build attached in App Store Connect | 18 (`VALID`; delivery `6eab8145-2197-4ef5-ac71-0254d3414f3e`) |
-| Version status / release | WAITING_FOR_REVIEW / AFTER_APPROVAL |
-| Review submission | `076a4fc5-bcbd-4a33-a765-bcf923a723bc`, submitted `2026-08-31T18:38:05.116Z`, WAITING_FOR_REVIEW |
-| Build 19 automated verification | AppTests 193/193, AppUITests 25/25 executions (22 unique methods), zero failures or skips; device install, signing, and hands-on review pending |
+| Version | 1.1 (released on the App Store 2026-09-06; 1.0 released 2026-09-03) |
+| Build attached in App Store Connect | 19 (`VALID`; delivery `7ac9d6ff-bd3e-49c5-b477-1eb337a67e71`) |
+| Version status / release | READY_FOR_SALE / AFTER_APPROVAL |
+| Review submission | 1.1: `739ba897-758b-4f4f-a901-fca9f8074b6e`, submitted `2026-09-04T14:03:47.468Z`, COMPLETE |
+| Build 19 automated verification | AppTests 259/259 on iPhone 17 Pro Max and iPad Pro 13-inch; AppUITests 30/30 on iPad (four capture tests skipped by design); Release archive/export, strict/deep signing, install on BDR 17 and Brian's iPad, and owner physical approval all passed |
 | Submitted build verification | 18 (AppTests 167/167, AppUITests 20/20 executions, stable Icon Composer exports, Release simulator/device builds, strict/deep signing, BDR 17 install/launch, identity confirmation, and owner physical approval passed) |
-| Platform | iOS, iPhone only |
+| Platform | iOS, iPhone and iPad (`TARGETED_DEVICE_FAMILY = "1,2"`) |
 | Minimum OS for Build 19 | iOS 26.0 |
-| Orientations | Portrait, landscape left, landscape right |
+| Orientations | iPhone: portrait, landscape left, landscape right. iPad: all four. |
 | Primary language | English (U.S.) |
 | Primary category | Utilities |
 | Price | Free, no in-app purchases |
@@ -78,7 +146,8 @@ Build 18 intentionally requires iOS 26 so it can use the current SwiftUI design 
 | Screenshots | Complete | Six approved Build 18 screenshots are `COMPLETE` at 1320×2868 in the verified order; old Build 4 screenshots were removed |
 | DSA territory status | Complete | Non-trader declaration is `Active` for all 27 EU territories; zero territories report `TRADER_STATUS_NOT_PROVIDED` |
 | Commerce/privacy confirmation | Complete | App Privacy is published as Data Not Collected and Free price `0.0` is confirmed |
-| Final submission | Waiting for review | Submission `076a4fc5-bcbd-4a33-a765-bcf923a723bc` was sent August 31, 2026; version and review submission are `WAITING_FOR_REVIEW`, with release `AFTER_APPROVAL` |
+| Final submission (1.0) | Released | Submission `076a4fc5-bcbd-4a33-a765-bcf923a723bc` was sent August 31, 2026; version 1.0 is `READY_FOR_SALE` |
+| Final submission (1.1) | Released | Submission `739ba897-758b-4f4f-a901-fca9f8074b6e` was sent September 4, 2026 and is `COMPLETE`; version 1.1 is `READY_FOR_SALE` |
 
 ## What the three modes add
 
@@ -463,4 +532,4 @@ The submission gate closed with every release requirement below complete:
 - [x] Review notes explain all three modes and hardware testing.
 - [x] The owner inspected and approved the complete release; review submission `076a4fc5-bcbd-4a33-a765-bcf923a723bc` was submitted at `2026-08-31T18:38:05.116Z`.
 
-Version 1.0 and review submission `076a4fc5-bcbd-4a33-a765-bcf923a723bc` are both `WAITING_FOR_REVIEW`. The release setting is `AFTER_APPROVAL`. Remaining work is operational: monitor App Store Connect and respond if App Review requests information or changes.
+Version 1.0 shipped, and version 1.1 (build 19) followed it: submitted `2026-09-04T14:03:47.468Z` under review submission `739ba897-758b-4f4f-a901-fca9f8074b6e`, approved, and `READY_FOR_SALE` as of September 6, 2026. Remaining work is operational: watch for crash reports and reviews from the first iPad users, since 1.1 is the app's first release on that device family.
