@@ -153,7 +153,7 @@ public struct NativeOfflineInformationCopy: Sendable {
                 )
             ],
             privacySummary: "No accounts, ads, analytics, or tracking. Every choice happens on this device.",
-            supportText: "Support and the public privacy policy remain available at brianrenshaw.github.io/chooser-web-app."
+            supportText: "Support and the public privacy policy remain available at brianrenshaw.app/chooser."
         )
     }
 }
@@ -635,7 +635,7 @@ public struct NativeHelpScreen: View {
                     .tint(visualTheme.actionAccentColor)
                     .foregroundStyle(visualTheme.accentForegroundColor)
 
-                    if let supportURL = URL(string: "https://brianrenshaw.github.io/chooser-web-app/support.html") {
+                    if let supportURL = URL(string: "https://brianrenshaw.app/chooser/support/") {
                         Link(destination: supportURL) {
                             Label("Public support page", systemImage: "safari")
                                 .frame(maxWidth: .infinity)
@@ -738,7 +738,7 @@ public struct NativePrivacyScreen: View {
                 NativeInfoSectionCard(section: section)
             }
 
-            if let privacyURL = URL(string: "https://brianrenshaw.github.io/chooser-web-app/privacy.html") {
+            if let privacyURL = URL(string: "https://brianrenshaw.app/chooser/privacy/") {
                 Link(destination: privacyURL) {
                     Label("View public privacy policy", systemImage: "safari")
                         .frame(maxWidth: .infinity)
