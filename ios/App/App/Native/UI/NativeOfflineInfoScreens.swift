@@ -635,7 +635,7 @@ public struct NativeHelpScreen: View {
                     .tint(visualTheme.actionAccentColor)
                     .foregroundStyle(visualTheme.accentForegroundColor)
 
-                    if let supportURL = URL(string: "https://brianrenshaw.app/chooser/support/") {
+                    if let supportURL = URL(string: "https://brianrenshaw.app/whos-first/support/") {
                         Link(destination: supportURL) {
                             Label("Public support page", systemImage: "safari")
                                 .frame(maxWidth: .infinity)
@@ -738,7 +738,7 @@ public struct NativePrivacyScreen: View {
                 NativeInfoSectionCard(section: section)
             }
 
-            if let privacyURL = URL(string: "https://brianrenshaw.app/chooser/privacy/") {
+            if let privacyURL = URL(string: "https://brianrenshaw.app/whos-first/privacy/") {
                 Link(destination: privacyURL) {
                     Label("View public privacy policy", systemImage: "safari")
                         .frame(maxWidth: .infinity)

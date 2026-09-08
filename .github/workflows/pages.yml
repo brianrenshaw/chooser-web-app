@@ -26,8 +26,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/configure-pages@v5
+      - name: Stage the native app website
+        run: |
+          mkdir -p _site
+          cp web/index.html web/support.html web/privacy.html web/family.css _site/
+          cp -R web/assets _site/assets
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: web
+          path: _site
       - id: deployment
         uses: actions/deploy-pages@v4
