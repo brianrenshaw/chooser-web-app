@@ -32,3 +32,9 @@ Website changes are committed separately from ongoing app work. Existing uncommi
 The native Five Seats, One Table Icon Composer asset is authoritative. The new page uses the native board palette and native screenshots from the existing build-18 capture set, with Chooser, Tap In and Pinball featured equally. Support instructions reflect version 1.2.
 
 Who’s First? canonical path is `/whos-first/` (support and privacy underneath). Its browser game is retired; legacy `/chooser/` links redirect to the native app website. Pinball is included in the native screenshot gallery.
+
+## HTTPS rollout completed
+
+Certificate approved and HTTPS enforced on September 8, 2026. All 19 routes were fetched over valid TLS and matched local files; www redirects to the HTTPS apex. Legacy compatibility pages are committed/pushed for all four websites. App Store Connect draft URLs for Reading Habit and Where Do We Eat and existing TestFlight URL fields were saved and read back. Released Who’s First? and Folio marketing/support/privacy fields require the next editable app version; old support/privacy pages remain readable. See brianrenshaw-app-site/migration/apple-results.json for exact outcomes.
+
+Remaining: clean current Reading Habit and Where Do We Eat screenshots and responsive visual browser review. Homepage arrows now share one SVG shape.
