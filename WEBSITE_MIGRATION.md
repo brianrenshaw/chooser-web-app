@@ -2,6 +2,18 @@
 
 Updated September 8, 2026.
 
+## Ongoing workflow from this app folder
+
+Start website tasks here. Read this document, then work directly in `/Users/brianrenshaw/Projects/brianrenshaw-app-site/site/whos-first/`. There is no automatic sync from native app assets to the website. The shared site repository is authoritative for published pages; older website folders hold compatibility pages or design references.
+
+1. Inspect this app’s current implementation, approved design, and assets. Follow local project instructions, including any device/simulator restrictions. Use real, publication-ready screenshots and record their source; do not present mockups or older captures as newly captured screens.
+2. Inspect the shared site repository’s instructions and git status. Update this app’s landing/support/privacy/guide pages and assets as needed. If its icon or summary changes, update the portfolio in `site/index.html` and affected social images too. Preserve canonical paths and legacy links.
+3. From `brianrenshaw-app-site`, run `python3 scripts/check_site.py`. Review affected pages at phone and desktop widths when browser access is available; report any visual checks that could not be performed.
+4. When publishing is requested, commit only the task’s website changes and push the shared site repository’s `main` branch. GitHub Actions deploys `site/`. Wait for deployment success, then run `python3 scripts/check_live.py` to verify the deployed HTML over HTTPS. Distinguish local changes, pushed changes, and verified live changes.
+5. Update this document with material URL, asset-source, or workflow changes and any remaining work. Commit and sync task-specific documentation in this app repository separately. Inspect branches and unpublished commits before pushing; do not publish unrelated app work. Folio’s local release branch may contain unpublished commits—use the existing main-branch checkout for documentation-only sync when necessary.
+
+Ordinary website updates do not require Hover changes, rerunning the migration cutover, or changing Apple metadata. App Store Connect URL edits are separate work when URLs actually change. Keep old support/privacy pages usable and the retired Who’s First? browser game retired.
+
 ## Canonical website
 
 The public website is maintained in **[brianrenshaw-app-site](https://github.com/brianrenshaw/brianrenshaw-app-site)**, locally at `/Users/brianrenshaw/Projects/brianrenshaw-app-site`. Edit its `site/whos-first/` directory for future public website changes. App source and release management remain in this repository.
