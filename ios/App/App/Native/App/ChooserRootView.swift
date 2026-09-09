@@ -173,7 +173,7 @@ public struct ChooserRootView: View {
                 onShuffleColorTheme: model.randomizeColorTheme,
                 onDismiss: { isSettingsPresented = false },
                 onSupport: {
-                    if let url = URL(string: "mailto:contact@foliohtml.com") {
+                    if let url = URL(string: "mailto:contact@brianrenshaw.app") {
                         openURL(url)
                     }
                 },

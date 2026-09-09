@@ -21,7 +21,7 @@ The public website is maintained in **[brianrenshaw-app-site](https://github.com
 - App page / Marketing URL: https://brianrenshaw.app/whos-first/
 - Support URL: https://brianrenshaw.app/whos-first/support/
 - Privacy Policy URL: https://brianrenshaw.app/whos-first/privacy/
-- Contact: contact@foliohtml.com
+- Contact: contact@brianrenshaw.app
 - App Store Connect app ID: `6806757289`
 
 ## Compatibility and releases

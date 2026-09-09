@@ -236,7 +236,7 @@ Public pages remain available at:
 
 - Privacy: https://brianrenshaw.github.io/chooser-web-app/privacy.html
 - Support: https://brianrenshaw.github.io/chooser-web-app/support.html
-- Contact: contact@foliohtml.com
+- Contact: contact@brianrenshaw.app
 
 ## Build and test operations
 

@@ -113,7 +113,7 @@ posters. `scripts/app-store-screenshots/` is retained only as the record of the
 | Primary category | Utilities |
 | Price | Free, no in-app purchases |
 | Privacy answer | Data Not Collected |
-| Support email | contact@foliohtml.com |
+| Support email | contact@brianrenshaw.app |
 | Support URL | https://brianrenshaw.github.io/chooser-web-app/support.html |
 | Privacy URL | https://brianrenshaw.github.io/chooser-web-app/privacy.html |
 
