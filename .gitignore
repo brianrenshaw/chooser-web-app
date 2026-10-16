@@ -6,3 +6,4 @@ ios/App/Podfile.lock
 ios/.sourcemaps/
 *.log
 /demo-assets/
+/artifacts/

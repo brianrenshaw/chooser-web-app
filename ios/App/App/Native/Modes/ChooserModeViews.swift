@@ -1256,28 +1256,170 @@ private struct PinballDividerCanvas: View {
             let baseRays = PinballDividerGeometry.baseRays(for: partition)
             let contrastScale: CGFloat = colorSchemeContrast == .increased ? 1.28 : 1
 
-            if let keylineColor = colorTheme.dividerSecondaryColor {
+            let primaryColor = colorTheme.dividerColor.opacity(
+                colorSchemeContrast == .increased ? 1 : (isDense ? 0.86 : 1)
+            )
+            let keylineWidth = metrics.keylineWidth * contrastScale
+            let primaryWidth = metrics.primaryWidth * contrastScale
+
+            switch colorTheme.visualTheme.dividerStyle {
+            case .inkKeyline:
+                if let keylineColor = colorTheme.dividerSecondaryColor {
+                    for ray in baseRays {
+                        strokeRay(
+                            from: ray.start,
+                            to: ray.end,
+                            in: &context,
+                            lineColor: keylineColor.opacity(isDense ? 0.92 : 1),
+                            lineWidth: keylineWidth
+                        )
+                    }
+                }
                 for ray in baseRays {
+                    strokeRay(from: ray.start, to: ray.end, in: &context, lineColor: primaryColor, lineWidth: primaryWidth)
+                }
+            case .stitchedSeam:
+                // A pressed groove with a thread running along it.
+                for ray in baseRays {
+                    if let keylineColor = colorTheme.dividerSecondaryColor {
+                        strokeRay(
+                            from: ray.start, to: ray.end, in: &context,
+                            lineColor: keylineColor.opacity(isDense ? 0.62 : 0.7),
+                            lineWidth: keylineWidth
+                        )
+                    }
                     strokeRay(
-                        from: ray.start,
-                        to: ray.end,
-                        in: &context,
-                        lineColor: keylineColor.opacity(isDense ? 0.92 : 1),
-                        lineWidth: metrics.keylineWidth * contrastScale
+                        from: ray.start, to: ray.end, in: &context,
+                        lineColor: primaryColor,
+                        lineWidth: primaryWidth * 0.9,
+                        dash: [6 * contrastScale, 5 * contrastScale]
                     )
                 }
-            }
-
-            for ray in baseRays {
-                strokeRay(
-                    from: ray.start,
-                    to: ray.end,
-                    in: &context,
-                    lineColor: colorTheme.dividerColor.opacity(
-                        colorSchemeContrast == .increased ? 1 : (isDense ? 0.86 : 1)
-                    ),
-                    lineWidth: metrics.primaryWidth * contrastScale
-                )
+            case .rope:
+                // Rope: a fibre body with short dark twists across it.
+                for ray in baseRays {
+                    if let keylineColor = colorTheme.dividerSecondaryColor {
+                        strokeRay(
+                            from: ray.start, to: ray.end, in: &context,
+                            lineColor: keylineColor.opacity(0.32),
+                            lineWidth: keylineWidth + 1.5
+                        )
+                    }
+                    strokeRay(
+                        from: ray.start, to: ray.end, in: &context,
+                        lineColor: primaryColor, lineWidth: primaryWidth * 1.6
+                    )
+                    if let keylineColor = colorTheme.dividerSecondaryColor {
+                        strokeRay(
+                            from: ray.start, to: ray.end, in: &context,
+                            lineColor: keylineColor,
+                            lineWidth: primaryWidth * 1.6,
+                            dash: [1.6, 3.4],
+                            lineCap: .butt
+                        )
+                    }
+                }
+            case .stoneMullion:
+                // A stone bar held in lead, catching the light on one edge.
+                for ray in baseRays {
+                    if let keylineColor = colorTheme.dividerSecondaryColor {
+                        strokeRay(
+                            from: ray.start, to: ray.end, in: &context,
+                            lineColor: keylineColor,
+                            lineWidth: keylineWidth + 2.6
+                        )
+                    }
+                    strokeRay(
+                        from: ray.start, to: ray.end, in: &context,
+                        lineColor: primaryColor, lineWidth: primaryWidth + 2.4
+                    )
+                    strokeRay(
+                        from: CGPoint(x: ray.start.x - 0.8, y: ray.start.y - 0.8),
+                        to: CGPoint(x: ray.end.x - 0.8, y: ray.end.y - 0.8),
+                        in: &context,
+                        lineColor: Color.white.opacity(0.32),
+                        lineWidth: 0.9
+                    )
+                }
+            case .pencil:
+                // Two graphite strokes, the second faint and slightly offset,
+                // like a line drawn twice in a field guide.
+                for ray in baseRays {
+                    if let keylineColor = colorTheme.dividerSecondaryColor {
+                        strokeRay(
+                            from: ray.start, to: ray.end, in: &context,
+                            lineColor: keylineColor.opacity(0.45),
+                            lineWidth: keylineWidth * 0.7
+                        )
+                    }
+                    strokeRay(
+                        from: ray.start, to: ray.end, in: &context,
+                        lineColor: primaryColor, lineWidth: primaryWidth * 0.75
+                    )
+                    strokeRay(
+                        from: CGPoint(x: ray.start.x + 1.6, y: ray.start.y + 1.2),
+                        to: CGPoint(x: ray.end.x + 1.2, y: ray.end.y + 1.6),
+                        in: &context,
+                        lineColor: primaryColor.opacity(0.45),
+                        lineWidth: primaryWidth * 0.45
+                    )
+                }
+            case .dottedRoute:
+                // A map's land route: round dots on a parchment path.
+                for ray in baseRays {
+                    if let keylineColor = colorTheme.dividerSecondaryColor {
+                        strokeRay(
+                            from: ray.start, to: ray.end, in: &context,
+                            lineColor: keylineColor.opacity(0.85),
+                            lineWidth: keylineWidth
+                        )
+                    }
+                    strokeRay(
+                        from: ray.start, to: ray.end, in: &context,
+                        lineColor: primaryColor,
+                        lineWidth: primaryWidth * 1.3,
+                        dash: [0.1, 6.5 * contrastScale]
+                    )
+                }
+            case .twig:
+                // A twig: the same ray, bent gently at a few joints.
+                for (index, ray) in baseRays.enumerated() {
+                    let path = Self.twigPath(from: ray.start, to: ray.end, seed: index)
+                    if let keylineColor = colorTheme.dividerSecondaryColor {
+                        context.stroke(
+                            path,
+                            with: .color(keylineColor.opacity(0.55)),
+                            style: StrokeStyle(lineWidth: keylineWidth, lineCap: .round, lineJoin: .round)
+                        )
+                    }
+                    context.stroke(
+                        path,
+                        with: .color(primaryColor),
+                        style: StrokeStyle(lineWidth: primaryWidth * 1.3, lineCap: .round, lineJoin: .round)
+                    )
+                }
+            case .goldInlay:
+                // A fine gold line set into a faint groove.
+                for ray in baseRays {
+                    if let keylineColor = colorTheme.dividerSecondaryColor {
+                        strokeRay(
+                            from: ray.start, to: ray.end, in: &context,
+                            lineColor: keylineColor.opacity(0.22),
+                            lineWidth: keylineWidth
+                        )
+                    }
+                    strokeRay(
+                        from: ray.start, to: ray.end, in: &context,
+                        lineColor: primaryColor, lineWidth: primaryWidth * 0.85
+                    )
+                    strokeRay(
+                        from: CGPoint(x: ray.start.x - 0.5, y: ray.start.y - 0.5),
+                        to: CGPoint(x: ray.end.x - 0.5, y: ray.end.y - 0.5),
+                        in: &context,
+                        lineColor: Color.white.opacity(0.35),
+                        lineWidth: 0.6
+                    )
+                }
             }
 
             if let winnerSeatID {
@@ -1313,13 +1455,34 @@ private struct PinballDividerCanvas: View {
         .accessibilityHidden(true)
     }
 
+    /// A ray bent at three joints by a few points, alternating sides, so
+    /// every twig differs but each redraws identically.
+    static func twigPath(from start: CGPoint, to end: CGPoint, seed: Int) -> Path {
+        let dx = end.x - start.x
+        let dy = end.y - start.y
+        let length = max(1, hypot(dx, dy))
+        let normal = CGPoint(x: -dy / length, y: dx / length)
+        let side: CGFloat = seed.isMultiple(of: 2) ? 1 : -1
+        var path = Path()
+        path.move(to: start)
+        for (fraction, bend) in [(0.28, 3.0), (0.55, -2.4), (0.80, 2.8)] as [(CGFloat, CGFloat)] {
+            path.addLine(to: CGPoint(
+                x: start.x + dx * fraction + normal.x * bend * side,
+                y: start.y + dy * fraction + normal.y * bend * side
+            ))
+        }
+        path.addLine(to: end)
+        return path
+    }
+
     private func strokeRay(
         from start: CGPoint,
         to end: CGPoint,
         in context: inout GraphicsContext,
         lineColor: Color,
         lineWidth: CGFloat,
-        dash: [CGFloat] = []
+        dash: [CGFloat] = [],
+        lineCap: CGLineCap = .round
     ) {
         var path = Path()
         path.move(to: start)
@@ -1329,7 +1492,7 @@ private struct PinballDividerCanvas: View {
             with: .color(lineColor),
             style: StrokeStyle(
                 lineWidth: lineWidth,
-                lineCap: .round,
+                lineCap: lineCap,
                 dash: dash
             )
         )

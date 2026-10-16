@@ -111,6 +111,24 @@ final class OnboardingProgressTests: XCTestCase {
         XCTAssertEqual(OnboardingMoment.modeCard(.pinball).persistenceToken, "mode.pinball")
     }
 
+    func testCompletedChoiceCountReadsZeroUntilSavedAndRoundTrips() throws {
+        let (defaults, suiteName) = try makeDefaults()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let store = makeStore(defaults)
+
+        XCTAssertEqual(store.loadCompletedChoiceCount(), 0)
+        XCTAssertNil(defaults.object(forKey: "\(key).completed-choices"), "a read never writes")
+
+        store.saveCompletedChoiceCount(4)
+        XCTAssertEqual(makeStore(defaults).loadCompletedChoiceCount(), 4)
+    }
+
+    func testTheShuffleHintRoundTripsAndStaysOutOfTheIntroduction() {
+        XCTAssertEqual(OnboardingMoment.themeShuffleHint.persistenceToken, "hint.themeShuffle")
+        XCTAssertEqual(OnboardingMoment(persistenceToken: "hint.themeShuffle"), .themeShuffleHint)
+        XCTAssertFalse(OnboardingMoment.all.contains(.themeShuffleHint))
+    }
+
     func testEveryWelcomePageMatchesACopyDeckModeIdentifier() {
         let copy = NativeOfflineInformationCopy.chooser(version: "1.1")
         for page in NativeWelcomePage.allCases {

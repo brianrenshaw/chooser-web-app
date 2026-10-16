@@ -8,6 +8,29 @@ final class TogetherChooserCoreTests: XCTestCase {
     private let second = TogetherTouchIdentity(rawValue: 202)
     private let third = TogetherTouchIdentity(rawValue: 303)
 
+    func testDefaultRoundStartsFeedbackPromptlyAndRevealsAtTwoSeconds() {
+        let scheduler = ManualChooserScheduler()
+        let core = TogetherChooserCore(
+            scheduler: scheduler,
+            randomIndexGenerator: FixedRandomIndexGenerator(index: 0)
+        )
+        core.touchBegan(first)
+        core.touchBegan(second)
+
+        XCTAssertEqual(settlingDuration, 0.35, accuracy: 0.000_001)
+        XCTAssertEqual(
+            settlingDuration + ChoiceAnticipationTimeline.chooser.beats[0].time,
+            0.45,
+            accuracy: 0.000_001
+        )
+        scheduler.advance(by: 0.35)
+        XCTAssertEqual(core.phase, .countdown)
+        scheduler.advance(by: 1.649)
+        XCTAssertEqual(core.phase, .countdown)
+        scheduler.advance(by: 0.001_001)
+        XCTAssertEqual(core.phase, .revealed(winner: first))
+    }
+
     func testTwoTouchesSettleCountDownAndRevealExactlyOneStoredIdentity() {
         let scheduler = ManualChooserScheduler()
         let core = TogetherChooserCore(

@@ -4,6 +4,59 @@ import XCTest
 
 @MainActor
 final class NativeFeedbackCoordinatorTests: XCTestCase {
+    func testDisabledHapticsNeverDeliverGameplayThroughEitherBackend() {
+        for supportsCoreHaptics in [false, true] {
+            let coordinator = NativeFeedbackCoordinator(
+                testSupportsCoreHaptics: supportsCoreHaptics,
+                hapticsEnabled: false,
+                audioPolicy: .never
+            )
+            coordinator.coreHapticPlaybackOverride = { _ in
+                XCTFail("Disabled haptics must not start Core Haptics playback")
+            }
+            coordinator.onUIKitSequencePulse = { _ in
+                XCTFail("Disabled haptics must not deliver UIKit fallback pulses")
+            }
+            for cue: NativeFeedbackCue in [
+                .entryCommitted, .togetherCountdown, .tapInCountdown(duration: 1),
+                .chooserWinner, .choiceWinner, .pinballLaunch(strength: 1),
+                .pinballCollision(speedFraction: 1, normalImpulseFraction: 1, isCorner: true),
+                .pinballFairBounce(speedFraction: 1, normalImpulseFraction: 1), .pinballSettle
+            ] {
+                XCTAssertEqual(coordinator.play(cue), .silent)
+            }
+        }
+    }
+
+    func testGameplayPatternsStayBoundedAndLeaveWinnerIntensityHeadroom() {
+        let winnerIntensity = ChoiceAnticipationTimeline.chooser.winnerHaptic.attackIntensity
+        var cues: [NativeFeedbackCue] = [
+            .entryCommitted, .togetherCountdown, .tapInCountdown(duration: 1)
+        ]
+        for energy in [-1.0, 0, 0.25, 0.5, 1, 2] {
+            cues += [
+                .pinballLaunch(strength: energy),
+                .pinballCollision(speedFraction: energy, normalImpulseFraction: energy, isCorner: true),
+                .pinballFairBounce(speedFraction: energy, normalImpulseFraction: energy)
+            ]
+        }
+        for cue in cues {
+            for event in cue.hapticEventSpecs {
+                XCTAssertTrue((0...1).contains(event.intensity))
+                XCTAssertTrue((0...1).contains(event.sharpness))
+                if event.kind == .transient {
+                    XCTAssertLessThan(event.intensity, winnerIntensity)
+                }
+            }
+            for curve in cue.hapticParameterCurveSpecs {
+                XCTAssertTrue(curve.controlPoints.allSatisfy { (0...1).contains($0.value) })
+            }
+            for pulse in cue.uiKitSequencePulses ?? [] {
+                XCTAssertTrue((0...1).contains(pulse.intensity))
+            }
+        }
+    }
+
     func testTogetherSettlingWindowIsTactilelySilent() {
         let settling = NativeFeedbackCue.settling(duration: 1.5).hapticEventSpecs
 
@@ -64,7 +117,7 @@ final class NativeFeedbackCoordinatorTests: XCTestCase {
 
         XCTAssertEqual(
             fallback.map(\.impact),
-            [.medium, .medium, .medium, .medium, .heavy, .heavy]
+            Array(repeating: .heavy, count: 6)
         )
         XCTAssertEqual(fallback.map(\.intensity), timeline.beats.map(\.fallbackIntensity))
         assertPulseTimes(fallback, equal: timeline.beats.map(\.time))
@@ -113,10 +166,9 @@ final class NativeFeedbackCoordinatorTests: XCTestCase {
             fallback,
             [
                 .init(impact: .heavy, intensity: 1.0, relativeTime: contactTime),
-                .init(impact: .heavy, intensity: 0.78, relativeTime: contactTime + 0.100),
-                .init(impact: .medium, intensity: 0.52, relativeTime: contactTime + 0.320),
-                .init(impact: .soft, intensity: 0.28, relativeTime: contactTime + 0.580),
-                .init(impact: .soft, intensity: 0.16, relativeTime: contactTime + 0.740)
+                .init(impact: .heavy, intensity: 1.0, relativeTime: contactTime + 0.140),
+                .init(impact: .heavy, intensity: 0.95, relativeTime: contactTime + 0.340),
+                .init(impact: .medium, intensity: 0.65, relativeTime: contactTime + 0.540)
             ]
         )
         XCTAssertNil(cue.uiKitImmediatePulse)
@@ -124,14 +176,14 @@ final class NativeFeedbackCoordinatorTests: XCTestCase {
         XCTAssertFalse(cue.permitsAudioFallback)
     }
 
-    func testTapInKeepsItsBuildElevenOneSecondAnticipation() throws {
+    func testTapInKeepsOneSecondAnticipationWithStrongerBeats() throws {
         let cue = NativeFeedbackCue.tapInCountdown(duration: 1.0)
         let haptics = cue.hapticEventSpecs
         let fallback = try XCTUnwrap(cue.uiKitSequencePulses)
 
         assertTimes(haptics, equal: [0.06, 0.40, 0.69, 0.89])
-        XCTAssertEqual(haptics.map(\.intensity), [0.46, 0.62, 0.78, 0.92])
-        XCTAssertEqual(haptics.map(\.sharpness), [0.26, 0.30, 0.34, 0.38])
+        XCTAssertEqual(haptics.map(\.intensity), [0.78, 0.86, 0.93, 0.98])
+        XCTAssertEqual(haptics.map(\.sharpness), [0.65, 0.73, 0.81, 0.90])
         assertPulseTimes(fallback, equal: [0.06, 0.40, 0.69, 0.89])
     }
 
@@ -164,7 +216,7 @@ final class NativeFeedbackCoordinatorTests: XCTestCase {
         XCTAssertEqual(attack.sharpness, shared.attackSharpness, accuracy: 0.000_001)
         XCTAssertEqual(attack.relativeTime, shared.attackTime, accuracy: 0.000_001)
 
-        let body = try XCTUnwrap(events.last)
+        let body = try XCTUnwrap(events.first { $0.kind == .continuous })
         XCTAssertEqual(body.kind, .continuous)
         XCTAssertEqual(body.intensity, 1.0, accuracy: 0.000_001)
         XCTAssertEqual(body.sharpness, shared.bodySharpness, accuracy: 0.000_001)
@@ -187,10 +239,9 @@ final class NativeFeedbackCoordinatorTests: XCTestCase {
             fallback,
             [
                 .init(impact: .heavy, intensity: 1.0, relativeTime: 0),
-                .init(impact: .heavy, intensity: 0.78, relativeTime: 0.100),
-                .init(impact: .medium, intensity: 0.52, relativeTime: 0.320),
-                .init(impact: .soft, intensity: 0.28, relativeTime: 0.580),
-                .init(impact: .soft, intensity: 0.16, relativeTime: 0.740)
+                .init(impact: .heavy, intensity: 1.0, relativeTime: 0.140),
+                .init(impact: .heavy, intensity: 0.95, relativeTime: 0.340),
+                .init(impact: .medium, intensity: 0.65, relativeTime: 0.540)
             ]
         )
         XCTAssertNil(cue.uiKitImmediatePulse)
@@ -198,7 +249,7 @@ final class NativeFeedbackCoordinatorTests: XCTestCase {
         XCTAssertFalse(cue.permitsAudioFallback)
     }
 
-    func testEntryCommitIsAShortWoodenContactWithAProtectedBody() throws {
+    func testEntryCommitIsAFirmContactWithAShortBody() throws {
         let cue = NativeFeedbackCue.entryCommitted
         let events = cue.hapticEventSpecs
         let curve = try XCTUnwrap(cue.hapticParameterCurveSpecs.first)
@@ -207,28 +258,28 @@ final class NativeFeedbackCoordinatorTests: XCTestCase {
         XCTAssertEqual(events, [
             .init(
                 kind: .transient,
-                intensity: 0.42,
-                sharpness: 0.24,
+                intensity: 0.85,
+                sharpness: 0.75,
                 relativeTime: 0,
                 duration: 0
             ),
             .init(
                 kind: .continuous,
                 intensity: 1.0,
-                sharpness: 0.06,
+                sharpness: 0.45,
                 relativeTime: 0.008,
                 duration: 0.11
             )
         ])
         XCTAssertEqual(curve.relativeTime, 0.008, accuracy: 0.000_001)
         XCTAssertEqual(curve.controlPoints, [
-            .init(relativeTime: 0, value: 0.38),
-            .init(relativeTime: 0.040, value: 0.22),
+            .init(relativeTime: 0, value: 0.85),
+            .init(relativeTime: 0.040, value: 0.65),
             .init(relativeTime: 0.110, value: 0.05)
         ])
         XCTAssertEqual(fallback, [
-            .init(impact: .medium, intensity: 0.52, relativeTime: 0),
-            .init(impact: .soft, intensity: 0.24, relativeTime: 0.070)
+            .init(impact: .heavy, intensity: 1.0, relativeTime: 0),
+            .init(impact: .heavy, intensity: 0.65, relativeTime: 0.070)
         ])
         XCTAssertTrue(cue.isSequence)
     }
@@ -254,56 +305,22 @@ final class NativeFeedbackCoordinatorTests: XCTestCase {
         XCTAssertEqual(
             pulses,
             [
-                .init(impact: .medium, intensity: 0.52, relativeTime: 0),
-                .init(impact: .medium, intensity: 0.52, relativeTime: 0)
+                .init(impact: .heavy, intensity: 1.0, relativeTime: 0),
+                .init(impact: .heavy, intensity: 1.0, relativeTime: 0)
             ],
             "Only the first physical contact in each 50ms cluster should reach the Taptic Engine"
         )
         coordinator.cancelSequence()
     }
 
-    func testPinballSettleIsShorterAndDistinctFromChoiceWinner() throws {
-        let choice = NativeFeedbackCue.choiceWinner.hapticEventSpecs
-        let settleCue = NativeFeedbackCue.pinballSettle
-        let settle = settleCue.hapticEventSpecs
-        let fallback = try XCTUnwrap(settleCue.uiKitImmediatePulse)
-
-        XCTAssertEqual(settle.count, 2)
-        XCTAssertEqual(settle[0], .init(
-            kind: .transient,
-            intensity: 0.84,
-            sharpness: 0.20,
-            relativeTime: 0,
-            duration: 0
-        ))
-        XCTAssertEqual(settle[1], .init(
-            kind: .continuous,
-            intensity: 1.0,
-            sharpness: 0.055,
-            relativeTime: 0.008,
-            duration: 0.21
-        ))
-        XCTAssertEqual(
-            settleCue.hapticParameterCurveSpecs,
-            [
-                .init(
-                    parameter: .intensityControl,
-                    relativeTime: 0.008,
-                    controlPoints: [
-                        .init(relativeTime: 0, value: 0.70),
-                        .init(relativeTime: 0.035, value: 0.82),
-                        .init(relativeTime: 0.105, value: 0.47),
-                        .init(relativeTime: 0.170, value: 0.18),
-                        .init(relativeTime: 0.210, value: 0.03)
-                    ]
-                )
-            ]
-        )
-        XCTAssertLessThan(sequenceEndTime(settle), sequenceEndTime(choice))
-
-        XCTAssertEqual(fallback.impact, .heavy)
-        XCTAssertEqual(fallback.intensity, 0.92, accuracy: 0.000_001)
-        XCTAssertEqual(fallback.relativeTime, 0, accuracy: 0.000_001)
+    func testPinballWinnerSharesTheFirmSustainedRumbleAtItsOwnContact() throws {
+        let cue = NativeFeedbackCue.pinballSettle
+        XCTAssertEqual(cue.hapticEventSpecs, NativeFeedbackCue.choiceWinner.hapticEventSpecs)
+        XCTAssertEqual(cue.hapticParameterCurveSpecs, NativeFeedbackCue.choiceWinner.hapticParameterCurveSpecs)
+        XCTAssertEqual(cue.uiKitSequencePulses, NativeFeedbackCue.choiceWinner.uiKitSequencePulses)
+        XCTAssertNil(cue.uiKitImmediatePulse)
+        XCTAssertTrue(cue.isSequence)
+        XCTAssertTrue(cue.permitsAudioFallback)
     }
 
     func testPinballLaunchCueTracksCommittedFlickStrength() throws {
@@ -360,8 +377,8 @@ final class NativeFeedbackCoordinatorTests: XCTestCase {
             ).hapticEventSpecs.first
         )
 
-        XCTAssertEqual(stopped.intensity, 0.12, accuracy: 0.000_001)
-        XCTAssertEqual(stopped.sharpness, 0.24, accuracy: 0.000_001)
+        XCTAssertEqual(stopped.intensity, 0.38, accuracy: 0.000_001)
+        XCTAssertEqual(stopped.sharpness, 0.50, accuracy: 0.000_001)
         XCTAssertGreaterThan(glancing.intensity, stopped.intensity)
         XCTAssertGreaterThan(glancing.sharpness, stopped.sharpness)
         XCTAssertGreaterThan(moving.intensity, glancing.intensity)
@@ -386,43 +403,42 @@ final class NativeFeedbackCoordinatorTests: XCTestCase {
         XCTAssertEqual(weak, [
             .init(
                 kind: .transient,
-                intensity: 0.60,
-                sharpness: 0.38,
+                intensity: 0.82,
+                sharpness: 0.65,
                 relativeTime: 0,
                 duration: 0
             ),
             .init(
                 kind: .continuous,
                 intensity: 1,
-                sharpness: 0.07,
+                sharpness: 0.45,
                 relativeTime: 0.004,
                 duration: 0.075
             )
         ])
-        XCTAssertEqual(strong[0].intensity, 0.78, accuracy: 0.000_001)
-        XCTAssertEqual(strong[0].sharpness, 0.56, accuracy: 0.000_001)
+        XCTAssertEqual(strong[0].intensity, 0.98, accuracy: 0.000_001)
+        XCTAssertEqual(strong[0].sharpness, 0.90, accuracy: 0.000_001)
         XCTAssertEqual(strong[1], weak[1])
-        XCTAssertEqual(strongCue.hapticParameterCurveSpecs, [
-            .init(
-                parameter: .intensityControl,
-                relativeTime: 0.004,
-                controlPoints: [
-                    .init(relativeTime: 0, value: 0.52),
-                    .init(relativeTime: 0.024, value: 0.32),
-                    .init(relativeTime: 0.075, value: 0.04)
-                ]
-            )
-        ])
+        let curve = try XCTUnwrap(strongCue.hapticParameterCurveSpecs.first)
+        XCTAssertEqual(strongCue.hapticParameterCurveSpecs.count, 1)
+        XCTAssertEqual(curve.parameter, .intensityControl)
+        XCTAssertEqual(curve.relativeTime, 0.004, accuracy: 0.000_001)
+        XCTAssertEqual(curve.controlPoints.map(\.relativeTime), [0, 0.024, 0.075])
+        for (point, expected): (NativeHapticParameterCurveControlPointSpec, Float) in zip(
+            curve.controlPoints, [0.90, 0.65, 0.04]
+        ) {
+            XCTAssertEqual(point.value, expected, accuracy: 0.000_001)
+        }
 
         XCTAssertLessThan(strong[0].intensity, settle[0].intensity)
         XCTAssertLessThan(sequenceEndTime(strong), sequenceEndTime(settle))
         let weakFallback = try XCTUnwrap(weakCue.uiKitImmediatePulse)
         let strongFallback = try XCTUnwrap(strongCue.uiKitImmediatePulse)
         XCTAssertEqual(weakFallback.impact, .rigid)
-        XCTAssertEqual(weakFallback.intensity, 0.66, accuracy: 0.000_001)
+        XCTAssertEqual(weakFallback.intensity, 0.88, accuracy: 0.000_001)
         XCTAssertEqual(weakFallback.relativeTime, 0, accuracy: 0.000_001)
         XCTAssertEqual(strongFallback.impact, .rigid)
-        XCTAssertEqual(strongFallback.intensity, 0.82, accuracy: 0.000_001)
+        XCTAssertEqual(strongFallback.intensity, 1.0, accuracy: 0.000_001)
         XCTAssertEqual(strongFallback.relativeTime, 0, accuracy: 0.000_001)
         XCTAssertFalse(strongCue.isSequence)
         XCTAssertFalse(strongCue.permitsAudioFallback)
@@ -556,7 +572,7 @@ final class NativeFeedbackCoordinatorTests: XCTestCase {
         )
     }
 
-    func testUIKitWinnerFallbackApproximatesTheLongBodyAndCancelsCleanly() async throws {
+    func testUIKitWinnerFallbackApproximatesTheSustainedBodyAndCancelsCleanly() async throws {
         let coordinator = NativeFeedbackCoordinator(
             testSupportsCoreHaptics: false,
             audioPolicy: .never
@@ -565,17 +581,17 @@ final class NativeFeedbackCoordinatorTests: XCTestCase {
         coordinator.onUIKitSequencePulse = { delivered.append($0) }
 
         XCTAssertEqual(coordinator.play(.choiceWinner), .uiKit)
-        try await Task.sleep(for: .milliseconds(170))
+        try await Task.sleep(for: .milliseconds(220))
         XCTAssertEqual(
             delivered,
             [
                 .init(impact: .heavy, intensity: 1.0, relativeTime: 0),
-                .init(impact: .heavy, intensity: 0.78, relativeTime: 0.100)
+                .init(impact: .heavy, intensity: 1.0, relativeTime: 0.140)
             ]
         )
 
         coordinator.cancelSequence()
-        try await Task.sleep(for: .milliseconds(700))
+        try await Task.sleep(for: .milliseconds(900))
         XCTAssertEqual(delivered.count, 2, "The decaying fallback body must obey cancellation")
     }
 

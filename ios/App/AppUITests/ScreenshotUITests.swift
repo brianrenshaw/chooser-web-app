@@ -146,7 +146,8 @@ final class ScreenshotUITests: XCTestCase {
             "-chooser.color-theme", "wingspan-original",
             "-chooser.onboarding.version", "1",
             "-chooser.onboarding",
-            "(welcome, mode.together, mode.tapIn, mode.pinball, whatsNew.1.1)"
+            "(welcome, mode.together, mode.tapIn, mode.pinball, whatsNew.1.1, hint.themeShuffle)",
+            "-chooser.onboarding.completed-choices", "0"
         ]
         if let chooserParticipants {
             arguments += [

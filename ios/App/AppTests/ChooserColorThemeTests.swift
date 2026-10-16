@@ -39,114 +39,157 @@ final class ChooserColorThemeTests: XCTestCase {
         ExpectedTheme(
             theme: .wingspanOriginal, name: "Wingspan Original", appearance: .light,
             composition: .verticalWatercolorWash,
-            stops: [stop("#DFE6E0", 0), stop("#C9D7D4", 0.58), stop("#7EAFCA", 1)],
-            atmosphere: ["#F7F4EC", "#D95C4E"], atmosphereOpacities: [0.04, 0.025],
+            stops: [stop("#E9ECE3", 0), stop("#D3DFDA", 0.55), stop("#8DB9D0", 1)],
+            atmosphere: ["#D95C4E", "#3D78A1"], atmosphereOpacities: [0.08, 0.10],
             surfaceTexture: .watercolorFlecks,
             surfaceInk: "#27363B", onChromeInk: "#101D21", chrome: "#6E9FB7",
             action: "#D95C4E", detail: "#D5A62D", secondaryDetail: "#7EAFCA",
             participants: ["#D95C4E", "#D5A62D", "#3D78A1", "#508467", "#80658A"],
             finish: .watercolorEggshell, pinballMaterial: .coralEnamel,
-            ball: "#D95C4E", ballEdge: "#9E3F39", ballTail: "#D95C4E", ballImpact: "#27363B",
-            divider: "#27363B", dividerSecondary: "#F7F4EC",
-            textureOpacity: 0.026, separatorOpacity: 0.30, dividerOpacity: 0.32
+            ball: "#9FD0E3", ballEdge: "#4E8AA4", ballTail: "#7EAFCA", ballImpact: "#27363B",
+            divider: "#4A4F52", dividerSecondary: "#F7F4EC",
+            textureOpacity: 0.026, separatorOpacity: 0.30, dividerOpacity: 0.55
         ),
         ExpectedTheme(
             theme: .wingspanNectar, name: "Wingspan Asia", appearance: .dark,
-            composition: .coralFeatherField,
-            stops: [stop("#A5353C", 0), stop("#B43F43", 0.52), stop("#BC4848", 1)],
-            atmosphere: ["#D66358", "#2BA5A1"], atmosphereOpacities: [0.10, 0.035],
+            composition: .redLacquerField,
+            stops: [stop("#C24B4E", 0), stop("#9E2F36", 0.50), stop("#5A141C", 1)],
+            atmosphere: ["#E07068", "#FFFFFF"], atmosphereOpacities: [0.16, 0.14],
             surfaceTexture: .featherFibers,
             surfaceInk: "#FFF5E8", onChromeInk: "#FFF5E8", chrome: "#0C6B4D",
             action: "#0C6B4D", detail: "#2BA5A1", secondaryDetail: "#D4A42E",
-            participants: ["#0C6B4D", "#20539A", "#142D4A", "#2BA5A1", "#D4A42E"],
+            participants: ["#0C6B4D", "#20539A", "#F3E3C3", "#2BA5A1", "#D4A42E"],
             finish: .peacockJewelEnamel, pinballMaterial: .emeraldEnamel,
-            ball: "#0C6B4D", ballEdge: "#064832", ballTail: "#2BA5A1", ballImpact: "#D4A42E",
-            divider: "#FFF5E8", dividerSecondary: "#064832",
-            textureOpacity: 0.032, separatorOpacity: 0.38, dividerOpacity: 0.38
+            ball: "#0C6B4D", ballEdge: "#033524", ballTail: "#2BA5A1", ballImpact: "#D4A42E",
+            divider: "#F3E3C3", dividerSecondary: "#3E0C12",
+            textureOpacity: 0.032, separatorOpacity: 0.38, dividerOpacity: 0.60
         ),
         ExpectedTheme(
             theme: .wingspanHummingbirds, name: "Wingspan Americas", appearance: .dark,
-            composition: .brightLeafField,
-            stops: [stop("#37AD4B", 0), stop("#25A047", 0.55), stop("#16883E", 1)],
-            atmosphere: ["#0B6D35", "#EF4770"], atmosphereOpacities: [0.16, 0.025],
+            composition: .rainforestClearing,
+            stops: [stop("#5DB46E", 0), stop("#2E7A47", 0.45), stop("#0E3424", 1)],
+            atmosphere: ["#0B2B21", "#EF4770"], atmosphereOpacities: [0.40, 0.03],
             surfaceTexture: .leafFibers,
-            surfaceInk: "#0B2B21", onChromeInk: "#FFF9E9", chrome: "#075D38",
+            surfaceInk: "#FFF9E9", onChromeInk: "#FFF9E9", chrome: "#075D38",
             action: "#EF4770", detail: "#E85A3B", secondaryDetail: "#F1D35A",
-            participants: ["#075D38", "#EF4770", "#E85A3B", "#F1D35A", "#0A7880"],
+            participants: ["#B0234A", "#EF4770", "#E85A3B", "#F1D35A", "#0A7880"],
             finish: .featherJewelEnamel, pinballMaterial: .flamingoEnamel,
-            ball: "#EF4770", ballEdge: "#A92E51", ballTail: "#EF4770", ballImpact: "#E85A3B",
-            divider: "#0B2B21", dividerSecondary: "#FFF9E9",
-            textureOpacity: 0.028, separatorOpacity: 0.36, dividerOpacity: 0.58
+            ball: "#EF4770", ballEdge: "#8E1F3F", ballTail: "#EF4770", ballImpact: "#F1D35A",
+            divider: "#FFF9E9", dividerSecondary: "#0B2B21",
+            textureOpacity: 0.028, separatorOpacity: 0.36, dividerOpacity: 0.60
         ),
         ExpectedTheme(
-            theme: .nidavellir, name: "Nidavellir", appearance: .light,
-            composition: .parchmentMedallion,
-            stops: [stop("#F3F1EC", 0), stop("#DDDCD8", 1)],
-            atmosphere: ["#32383C", "#956C4D"], atmosphereOpacities: [0.18, 0.12],
+            theme: .nidavellir, name: "Nidavellir", appearance: .dark,
+            composition: .slateForge,
+            stops: [stop("#4E5860", 0), stop("#363D43", 0.60), stop("#1E2226", 1)],
+            atmosphere: ["#D97A1E", "#9AA3AA"], atmosphereOpacities: [0.28, 0.06],
             surfaceTexture: .parchmentPatina,
-            surfaceInk: "#24292C", onChromeInk: "#F3F0E9", chrome: "#343A3D",
-            action: "#B87945", detail: "#788B94", secondaryDetail: "#956C4D",
-            participants: ["#B96D38", "#C6A44D", "#607B8C", "#A54D45", "#58715E"],
+            surfaceInk: "#F3F0E9", onChromeInk: "#F3F0E9", chrome: "#2A3034",
+            action: "#D4A93A", detail: "#788B94", secondaryDetail: "#C9A03A",
+            participants: ["#6B3F8C", "#3F7F3A", "#2F5F9E", "#D97A1E", "#B02E2E"],
             finish: .hammeredMetal, pinballMaterial: .agedCopper,
-            ball: "#B87945", ballEdge: "#704328", ballTail: "#B87945", ballImpact: "#788B94",
-            divider: "#24292C", dividerSecondary: "#F3F0E9",
-            textureOpacity: 0.040, separatorOpacity: 0.36, dividerOpacity: 0.38
+            ball: "#D4A93A", ballEdge: "#7E5E14", ballTail: "#D4A93A", ballImpact: "#F3F0E9",
+            divider: "#C9A03A", dividerSecondary: "#14171A",
+            textureOpacity: 0.040, separatorOpacity: 0.36, dividerOpacity: 0.60
         ),
         ExpectedTheme(
             theme: .concordia, name: "Concordia", appearance: .light,
-            composition: .warmFrescoMedallion,
-            stops: [stop("#C4815E", 0), stop("#E2B98B", 1)],
-            atmosphere: ["#701426", "#8BC4DD", "#F5E7CB"], atmosphereOpacities: [0.24, 0.12, 0.14],
+            composition: .mediterraneanMap,
+            stops: [stop("#8BA7BC", 0), stop("#5F7F98", 1)],
+            atmosphere: ["#D9B44A", "#C25A35", "#E8DDC0"], atmosphereOpacities: [0.24, 0.18, 0.22],
             surfaceTexture: .frescoGrain,
-            surfaceInk: "#4C1820", onChromeInk: "#FFF0D5", chrome: "#701426",
-            action: "#D7AA34", detail: "#6EAECB", secondaryDetail: "#F5E7CB",
-            participants: ["#B73F45", "#3D7EA6", "#72863F", "#D2A52E", "#57515A"],
+            surfaceInk: "#2A1E14", onChromeInk: "#FFF0D5", chrome: "#701426",
+            action: "#D7AA34", detail: "#5A3E22", secondaryDetail: "#E8DDC0",
+            participants: ["#D9B44A", "#5E4E8E", "#C25A35", "#7E8F4A", "#B27AA0"],
             finish: .frescoEnamel, pinballMaterial: .romanGold,
-            ball: "#D7AA34", ballEdge: "#896716", ballTail: "#D7AA34", ballImpact: "#6EAECB",
-            divider: "#701426", dividerSecondary: "#F5E7CB",
-            textureOpacity: 0.034, separatorOpacity: 0.36, dividerOpacity: 0.54
+            ball: "#B07A3A", ballEdge: "#5A3A12", ballTail: "#B07A3A", ballImpact: "#701426",
+            divider: "#5A3E22", dividerSecondary: "#E8DDC0",
+            textureOpacity: 0.034, separatorOpacity: 0.36, dividerOpacity: 0.60
         ),
         ExpectedTheme(
             theme: .everdell, name: "Everdell", appearance: .dark,
-            composition: .goldenForestClearing,
-            stops: [stop("#D6B34A", 0), stop("#43542D", 0.58), stop("#102518", 1)],
-            atmosphere: ["#795035", "#88B7C2"], atmosphereOpacities: [0.10, 0.055],
+            composition: .honeyAutumnTree,
+            stops: [stop("#F0C46A", 0), stop("#C98A3A", 0.35), stop("#6B3A1E", 0.72), stop("#2A1A10", 1)],
+            atmosphere: ["#E8B85A", "#C25A28", "#963F50"], atmosphereOpacities: [0.40, 0.35, 0.35],
             surfaceTexture: .pressedPaper,
-            surfaceInk: "#F3EBC9", onChromeInk: "#F3EBC9", chrome: "#203821",
-            action: "#D5892D", detail: "#88B7C2", secondaryDetail: "#795035",
-            participants: ["#5E743B", "#795035", "#88B7C2", "#D37A2C", "#963F50"],
+            surfaceInk: "#F3EBC9", onChromeInk: "#F3EBC9", chrome: "#3A2412",
+            action: "#D5892D", detail: "#E8B85A", secondaryDetail: "#963F50",
+            participants: ["#D98A1E", "#5B2A5E", "#5E743B", "#B8B4AA", "#963F50"],
             finish: .pressedWoodPaper, pinballMaterial: .amberResin,
-            ball: "#D5892D", ballEdge: "#85521B", ballTail: "#D5892D", ballImpact: "#88B7C2",
-            divider: "#102417", dividerSecondary: "#F3EBC9",
-            textureOpacity: 0.036, separatorOpacity: 0.38, dividerOpacity: 0.58
+            ball: "#6E2F70", ballEdge: "#2E0F30", ballTail: "#963F50", ballImpact: "#F3EBC9",
+            divider: "#A87445", dividerSecondary: "#2A1A10",
+            textureOpacity: 0.036, separatorOpacity: 0.38, dividerOpacity: 0.60
         ),
         ExpectedTheme(
             theme: .lizardWizard, name: "Lizard Wizard", appearance: .dark,
-            composition: .midnightRedEdge,
-            stops: [stop("#111B38", 0), stop("#080E25", 1)],
-            atmosphere: ["#A32F39", "#F6F0E5"], atmosphereOpacities: [0.34, 0.065],
+            composition: .amberPlumPainting,
+            stops: [stop("#D09A48", 0), stop("#8A5A4E", 0.30), stop("#4A2E50", 0.62), stop("#2A1A30", 1)],
+            atmosphere: ["#2A1A30", "#F6E6C6"], atmosphereOpacities: [0.30, 0.05],
             surfaceTexture: .midnightSpeckle,
-            surfaceInk: "#F6F0E5", onChromeInk: "#F6F0E5", chrome: "#A32F39",
-            action: "#D99B2F", detail: "#1697A9", secondaryDetail: "#72813A",
-            participants: ["#1697A9", "#22776F", "#A93842", "#D99B2F", "#72813A"],
+            surfaceInk: "#F6F0E5", onChromeInk: "#F6F0E5", chrome: "#5A3A62",
+            action: "#F0C060", detail: "#1697A9", secondaryDetail: "#72813A",
+            participants: ["#2F6FB5", "#5A3A5E", "#1697A9", "#F0C060", "#72813A"],
             finish: .midnightEnamel, pinballMaterial: .manaEnamel,
-            ball: "#1697A9", ballEdge: "#0C5966", ballTail: "#1697A9", ballImpact: "#D99B2F",
-            divider: "#F6F0E5", dividerSecondary: "#080E25",
-            textureOpacity: 0.030, separatorOpacity: 0.38, dividerOpacity: 0.36
+            ball: "#9BB33A", ballEdge: "#3A4710", ballTail: "#F0C060", ballImpact: "#F6F0E5",
+            divider: "#F6E6C6", dividerSecondary: "#2A1A30",
+            textureOpacity: 0.030, separatorOpacity: 0.38, dividerOpacity: 0.60
         ),
         ExpectedTheme(
             theme: .leaders, name: "Leaders", appearance: .light,
             composition: .layeredScreenprint,
             stops: [stop("#F1E6D3", 0), stop("#E8DDCB", 0.62), stop("#D9E6DF", 1)],
-            atmosphere: ["#43B2BA", "#C73366"], atmosphereOpacities: [0.08, 0.035],
+            atmosphere: ["#43B2BA", "#C73366", "#B8902A"], atmosphereOpacities: [0.08, 0.035, 0.40],
             surfaceTexture: .screenprintRegistration,
             surfaceInk: "#053842", onChromeInk: "#FFF7E9", chrome: "#08747C",
             action: "#D28D00", detail: "#C73366", secondaryDetail: "#43B2BA",
             participants: ["#08747C", "#43B2BA", "#053842", "#C73366", "#D28D00"],
             finish: .flatScreenprint, pinballMaterial: .saffronScreenprint,
-            ball: "#D28D00", ballEdge: "#815700", ballTail: "#D28D00", ballImpact: "#C73366",
-            divider: "#053842", dividerSecondary: "#FFF7E9",
-            textureOpacity: 0.024, separatorOpacity: 0.30, dividerOpacity: 0.32
+            ball: "#D28D00", ballEdge: "#7A5100", ballTail: "#D28D00", ballImpact: "#C73366",
+            divider: "#B8902A", dividerSecondary: "#053842",
+            textureOpacity: 0.024, separatorOpacity: 0.30, dividerOpacity: 0.60
+        ),
+        ExpectedTheme(
+            theme: .resArcana, name: "Res Arcana", appearance: .dark,
+            composition: .tooledGrimoire,
+            stops: [stop("#4E0E15", 0), stop("#2A080C", 0.38), stop("#110406", 0.78), stop("#070203", 1)],
+            atmosphere: ["#9A1E16", "#E07A70", "#000000"], atmosphereOpacities: [0.30, 0.10, 0.40],
+            surfaceTexture: .leatherGrain,
+            surfaceInk: "#EADCC5", onChromeInk: "#EADCC5", chrome: "#170A0C",
+            action: "#D9482A", detail: "#CDB79A", secondaryDetail: "#A3121F",
+            participants: ["#A3121F", "#E4D6BE", "#2E2024", "#D9482A", "#8A7D7A"],
+            finish: .waxSeal, pinballMaterial: .garnetBead,
+            ball: "#C21A2A", ballEdge: "#4A0610", ballTail: "#E0442C", ballImpact: "#E4D6BE",
+            divider: "#CDB79A", dividerSecondary: "#050102",
+            textureOpacity: 0.040, separatorOpacity: 0.36, dividerOpacity: 0.55
+        ),
+        ExpectedTheme(
+            theme: .everdellEmerland, name: "Everdell Emerland", appearance: .light,
+            composition: .canopyRiverValley,
+            stops: [stop("#E4F5DC", 0), stop("#A9DDB2", 0.32), stop("#4A9A6B", 0.66), stop("#143F34", 1)],
+            atmosphere: ["#0B3A33", "#8FE0D6", "#FFFBE6", "#E063A6"],
+            atmosphereOpacities: [0.40, 0.40, 0.34, 0.40],
+            surfaceTexture: .paintedCanopy,
+            surfaceInk: "#0E2A20", onChromeInk: "#F4F1DE", chrome: "#0F4A40",
+            action: "#DE5A9E", detail: "#0E97AA", secondaryDetail: "#F29B30",
+            participants: ["#DE5A9E", "#F29B30", "#0E97AA", "#7E55BF", "#8A5A38"],
+            finish: .paintedWood, pinballMaterial: .cutEmerald,
+            ball: "#138A52", ballEdge: "#033A22", ballTail: "#BFF5D8", ballImpact: "#F29B30",
+            divider: "#C7A06A", dividerSecondary: "#3F2A14",
+            textureOpacity: 0.034, separatorOpacity: 0.32, dividerOpacity: 0.60
+        ),
+        ExpectedTheme(
+            theme: .sagrada, name: "Sagrada", appearance: .dark,
+            composition: .roseWindow,
+            stops: [stop("#22305E", 0), stop("#1A1638", 0.55), stop("#0D080A", 1)],
+            atmosphere: ["#FFE7A8", "#FFF4D6"], atmosphereOpacities: [0.26, 0.22],
+            surfaceTexture: .cathedralGlass,
+            surfaceInk: "#F2EFE6", onChromeInk: "#F2EFE6", chrome: "#3A3D3B",
+            action: "#F5C518", detail: "#A6A296", secondaryDetail: "#1C6FD0",
+            participants: ["#F5C518", "#E0262E", "#1C6FD0", "#23A04A", "#9A2DB5"],
+            finish: .leadedGlass, pinballMaterial: .clearGlassBead,
+            ball: "#CFE3F0", ballEdge: "#6F8CA6", ballTail: "#FFFFFF", ballImpact: "#F5C518",
+            divider: "#A6A296", dividerSecondary: "#0D080A",
+            textureOpacity: 0.032, separatorOpacity: 0.36, dividerOpacity: 0.60
         )
     ]
 
@@ -159,7 +202,8 @@ final class ChooserColorThemeTests: XCTestCase {
         XCTAssertEqual(ChooserColorTheme.allCases, expectedThemes.map(\.theme))
         XCTAssertEqual(ChooserColorTheme.allCases.map(\.rawValue), [
             "wingspan-original", "wingspan-nectar", "wingspan-hummingbirds", "nidavellir",
-            "concordia", "everdell", "lizard-wizard", "leaders"
+            "concordia", "everdell", "lizard-wizard", "leaders",
+            "res-arcana", "everdell-emerland", "sagrada"
         ])
 
         for expected in expectedThemes {
@@ -201,12 +245,12 @@ final class ChooserColorThemeTests: XCTestCase {
     }
 
     func testThemesHaveDistinctSurfacesFinishesSeedsAndInternalSwatches() {
-        XCTAssertEqual(Set(expectedThemes.map { $0.composition }).count, 8)
-        XCTAssertEqual(Set(expectedThemes.map { $0.surfaceTexture }).count, 8)
-        XCTAssertEqual(Set(expectedThemes.map { $0.stops.map(\.hex).joined(separator: ":") }).count, 8)
-        XCTAssertEqual(Set(expectedThemes.map(\.finish)).count, 8)
-        XCTAssertEqual(Set(expectedThemes.map(\.pinballMaterial)).count, 8)
-        XCTAssertEqual(Set(ChooserColorTheme.allCases.map { $0.visualTheme.textureSeed }).count, 8)
+        XCTAssertEqual(Set(expectedThemes.map { $0.composition }).count, 11)
+        XCTAssertEqual(Set(expectedThemes.map { $0.surfaceTexture }).count, 11)
+        XCTAssertEqual(Set(expectedThemes.map { $0.stops.map(\.hex).joined(separator: ":") }).count, 11)
+        XCTAssertEqual(Set(expectedThemes.map(\.finish)).count, 11)
+        XCTAssertEqual(Set(expectedThemes.map(\.pinballMaterial)).count, 11)
+        XCTAssertEqual(Set(ChooserColorTheme.allCases.map { $0.visualTheme.textureSeed }).count, 11)
 
         for expected in expectedThemes {
             XCTAssertEqual(expected.participants.count, 5)
@@ -217,9 +261,64 @@ final class ChooserColorThemeTests: XCTestCase {
 
         XCTAssertEqual(
             ChooserColorTheme.allCases.filter { $0.appearance == .light },
-            [.wingspanOriginal, .nidavellir, .concordia, .leaders]
+            [.wingspanOriginal, .concordia, .leaders, .everdellEmerland]
         )
-        XCTAssertEqual(ChooserColorTheme.allCases.filter { $0.appearance == .dark }.count, 4)
+        XCTAssertEqual(ChooserColorTheme.allCases.filter { $0.appearance == .dark }.count, 7)
+    }
+
+    func testEveryWorldHasItsOwnDividerStyleAndBallOrnament() {
+        let expectedDividers: [ChooserColorTheme: BoardDividerStyle] = [
+            .wingspanOriginal: .pencil,
+            .wingspanNectar: .inkKeyline,
+            .wingspanHummingbirds: .inkKeyline,
+            .nidavellir: .goldInlay,
+            .concordia: .dottedRoute,
+            .everdell: .twig,
+            .lizardWizard: .inkKeyline,
+            .leaders: .goldInlay,
+            .resArcana: .stitchedSeam,
+            .everdellEmerland: .rope,
+            .sagrada: .stoneMullion
+        ]
+        let expectedOrnaments: [ChooserColorTheme: PinballBallOrnament] = [
+            .wingspanOriginal: .speckledEgg,
+            .wingspanNectar: .glassBead,
+            .wingspanHummingbirds: .glassBead,
+            .nidavellir: .coin,
+            .concordia: .coin,
+            .everdell: .glassBead,
+            .lizardWizard: .slitPupil,
+            .leaders: .glassBead,
+            .resArcana: .glassBead,
+            .everdellEmerland: .facetedGem,
+            .sagrada: .clearGlass
+        ]
+        XCTAssertEqual(Set(expectedDividers.keys), Set(ChooserColorTheme.allCases))
+        for theme in ChooserColorTheme.allCases {
+            XCTAssertEqual(theme.visualTheme.dividerStyle, expectedDividers[theme], theme.name)
+            XCTAssertEqual(theme.pinballMaterial.presentation.ornament, expectedOrnaments[theme], theme.name)
+        }
+    }
+
+    func testOnlyResArcanaReplacesTheSharedDestructiveRed() {
+        for theme in ChooserColorTheme.allCases {
+            XCTAssertEqual(
+                theme.destructiveControlHex,
+                theme == .resArcana ? "#E4D6BE" : "#982B37",
+                theme.name
+            )
+        }
+    }
+
+    func testBoostedSurfaceTexturesStayUnderTheRendererCeiling() {
+        for theme in ChooserColorTheme.allCases {
+            XCTAssertGreaterThanOrEqual(theme.textureKind.surfaceStrength, 1, theme.name)
+            XCTAssertLessThanOrEqual(
+                theme.visualTheme.textureOpacity * theme.textureKind.surfaceStrength,
+                0.12,
+                theme.name
+            )
+        }
     }
 
     func testLegacyWingspanRawIDsMigrateToClearBoxLedDisplayNames() throws {
@@ -345,7 +444,7 @@ final class ChooserColorThemeTests: XCTestCase {
             }
         }
 
-        XCTAssertEqual(ChooserColorTheme.everdell.informationPanelHex, "#102518")
+        XCTAssertEqual(ChooserColorTheme.everdell.informationPanelHex, "#2A1A10")
         XCTAssertNotEqual(
             ChooserColorTheme.everdell.informationPanelHex,
             ChooserColorTheme.everdell.surfaceStartHex
@@ -626,6 +725,7 @@ final class ChooserColorThemeTests: XCTestCase {
         let model = ChooserAppModel(
             modeStore: MemoryLaunchDefaultModeStore(storedMode: .tapIn),
             colorThemeStore: store,
+            onboardingStore: MemoryOnboardingProgressStore(),
             feedback: NativeNoopFeedbackCoordinator()
         )
         XCTAssertTrue(model.addTapInEntryForAccessibility())

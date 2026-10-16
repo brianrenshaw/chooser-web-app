@@ -8,7 +8,7 @@ import SwiftUI
 /// `interactiveTextColor` and `informationPanelInkColor` are both solved for
 /// 4.5:1 against `informationPanelHex`, *not* against the board surface, so
 /// floating text directly on `BoardSurfaceView` is a latent contrast failure
-/// that only shows up on some of the eight worlds.
+/// that only shows up on some of the worlds.
 struct NativeBoardPanel: ViewModifier {
     let cornerRadius: CGFloat
     @Environment(\.chooserVisualTheme) private var visualTheme

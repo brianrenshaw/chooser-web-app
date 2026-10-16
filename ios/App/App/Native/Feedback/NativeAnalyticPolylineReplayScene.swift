@@ -481,6 +481,9 @@ public final class NativeAnalyticPolylineReplayScene: SKScene {
     private let cursorRimNode = SKShapeNode()
     private let cursorHighlightNode = SKShapeNode()
     private let cursorHighlightDotNode = SKShapeNode()
+    /// Material-specific light (gem facets, glass sparkle) from the shared
+    /// `PinballBallOrnamentGeometry`, matching the SwiftUI miniatures.
+    private let cursorOrnamentNode = SKNode()
 
     private var rawPlan: NativeAnalyticReplayPlan?
     private var pointMapper: NativeReplayPointMapper = { point, _ in point }
@@ -540,6 +543,7 @@ public final class NativeAnalyticPolylineReplayScene: SKScene {
         cursorNode.addChild(cursorShadeNode)
         cursorNode.addChild(cursorRimNode)
         cursorNode.addChild(cursorHighlightNode)
+        cursorNode.addChild(cursorOrnamentNode)
         cursorNode.addChild(cursorHighlightDotNode)
     }
 
@@ -927,6 +931,19 @@ public final class NativeAnalyticPolylineReplayScene: SKScene {
         cursorHighlightDotNode.fillColor = style.ballEdgeColor.withAlphaComponent(0.74)
         cursorHighlightDotNode.strokeColor = .clear
         rollingMarkBaseAlpha = max(0.28, material.markAlpha * 2.4)
+
+        cursorOrnamentNode.removeAllChildren()
+        for layer in PinballBallOrnamentGeometry.layers(for: material.ornament, radius: radius, yUp: true) {
+            let node = SKShapeNode(path: layer.path)
+            node.fillColor = layer.darkFillAlpha > 0
+                ? style.ballEdgeColor.withAlphaComponent(layer.darkFillAlpha)
+                : UIColor.white.withAlphaComponent(layer.fillAlpha)
+            node.strokeColor = UIColor.white.withAlphaComponent(layer.strokeAlpha)
+            node.lineWidth = layer.lineWidth
+            node.lineCap = .round
+            node.glowWidth = 0
+            cursorOrnamentNode.addChild(node)
+        }
     }
 
     private func render(progress: Double, tailSpeedFraction: CGFloat) {

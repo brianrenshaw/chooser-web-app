@@ -68,6 +68,19 @@ final class MemoryOnboardingProgressStore: OnboardingProgressPersisting {
         storedMoments = moments
         savedMomentSets.append(moments)
     }
+
+    var storedCompletedChoiceCount = 0
+    /// Write log for the choice counter, for the same reason as above.
+    private(set) var savedCompletedChoiceCounts: [Int] = []
+
+    func loadCompletedChoiceCount() -> Int {
+        storedCompletedChoiceCount
+    }
+
+    func saveCompletedChoiceCount(_ count: Int) {
+        storedCompletedChoiceCount = count
+        savedCompletedChoiceCounts.append(count)
+    }
 }
 
 /// Small deterministic source suitable for repeatable statistical tests.

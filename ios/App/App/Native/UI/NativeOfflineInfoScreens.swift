@@ -147,7 +147,7 @@ public struct NativeOfflineInformationCopy: Sendable {
                     title: "No collection or retention",
                     paragraphs: [
                         "Interaction data is not persisted or transmitted. Closing or reloading the app clears it.",
-                        "Only your chosen launch mode and color theme are saved on this device.",
+                        "Only your launch mode, color theme, which tips you have seen, and a count of finished choices are saved on this device.",
                         "There are no ads, analytics, tracking identifiers, or third-party network services."
                     ]
                 )

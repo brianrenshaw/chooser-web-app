@@ -1,5 +1,48 @@
 # Who's First? — App Store Readiness
 
+## Version 1.3 (21) — submitted October 2, 2026
+
+Content: three new visual worlds (Res Arcana, Everdell Emerland, Sagrada), deeper versions of the original eight, a brief world-name label after a three-finger shuffle, and a one-time three-finger tip after the fifth finished choice. See the README for the full description.
+
+- Public release notes: `app-store-assets/whats-new-1.3.txt`.
+- App Review notes: `app-store-assets/app-review-notes-1.3.txt`.
+- Screenshots: all six iPhone 6.9-inch (1320 x 2868) and iPad 13-inch (2064 x 2752) captures were re-shot from this build with `scripts/capture-screenshots.sh` on dedicated simulators `WhosFirst Store iPhone 6.9` and `WhosFirst Store iPad 13` (iOS 26.5). `06-visual-worlds` now shows the eleven-world Settings grid.
+- Privacy: the in-app privacy line and the public privacy policy (published and verified live September 30, 2026) now name the tip markers and the finished-choice count. App Privacy remains **Data Not Collected**; nothing is transmitted.
+- Validation: 286 AppTests pass; the AppUITests suite passes (26 executions, 0 failures; the 4 screenshot tests run separately in capture mode and also pass).
+- Archive: `ios/App/build/app-store/WhosFirst-1.3-build21.xcarchive`; package: `ios/App/build/app-store/export-build21/App.ipa`. The package reports 1.3 (21), minimum iOS 26.0, bundle `com.brianrenshaw.fingerchooser`, and passes strict/deep codesign under Apple Distribution: Brian Renshaw (2LZJMJR6V8).
+- Upload: delivery `14072d84-ecca-4056-a20c-635da62b6437` uploaded October 2, 2026 with `altool` and the App Store Connect API key; processed `VALID`, minimum iOS 26.0, `usesNonExemptEncryption = false`.
+- App Store Connect: version 1.3 (`d6430de9-ab47-40ca-996a-a2fda3057295`, release `AFTER_APPROVAL`) has build 21 attached, the release notes and review notes above (review notes trimmed to fit Apple's 4,000-character limit), and all twelve re-shot screenshots. 1.2 (20) was `READY_FOR_SALE` before 1.3 was created.
+- Review submission: `542057a6-866b-49ae-91bb-d1e2aae38677`, submitted `2026-10-02T12:23:51.91Z`, `WAITING_FOR_REVIEW`.
+- Not done: no physical-device or haptic review of 1.3 was recorded before submission.
+- After release: update the website landing page ("Eight visual worlds", palette swatches, worlds image) and the support page ("Settings offers eight visual worlds") to eleven.
+
+## Version 1.2 — submitted September 7, 2026
+
+Version **1.2 (20)** is **WAITING_FOR_REVIEW**. Public release notes are exactly:
+
+> Improved timing and haptic feedback
+
+- Version ID: `21c2ef09-dd06-46e4-bfba-98754128fd88`
+- Build/delivery ID: `516185ae-c77b-4fba-a5ac-f3c46eb5f243` — `VALID`, iOS 26+, iPhone and iPad, no non-exempt encryption
+- Review submission: `99729250-1463-40c8-8e83-ba09db8f9b1d` — submitted `2026-09-07T11:08:06.11Z`
+- Release setting: `AFTER_APPROVAL`
+- Localization: `239fa77f-1ef9-46d5-819c-1f382cfce048` (`en-US`)
+- The description, keywords, URLs, and six complete screenshots for each device family were preserved from 1.1. App Review notes identify build 20/version 1.2 and the revised Chooser timing.
+- Release archive, strict/deep signature verification, distribution export, Apple validation, upload, and processing passed. Gameplay regression, UI, and final haptic checks passed before archiving; the owner preferred the installed 0.65-second winner finish.
+- Archive: `ios/App/build/app-store/WhosFirst-1.2-build20.xcarchive`; package: `ios/App/build/app-store/export-build20/App.ipa`. Validation and submission evidence: `/tmp/chooser-release12/`.
+
+Version 1.1 remains live while Apple reviews 1.2.
+
+
+## Local gameplay feedback tuning — September 7, 2026
+
+The local native implementation supersedes the older timing descriptions below: Chooser settles for **0.35 seconds**, then runs **1.65 seconds** of anticipation. Six beats at **0.10 / 0.44 / 0.74 / 1.00 / 1.22 / 1.41 seconds** rise from **0.75 to 0.98 intensity** and **0.60 to 0.90 sharpness**. The first buildup tap arrives 0.45 seconds after the final join and selection occurs at 2.0 seconds. The winner retains its 0.082-second visual contact offset and 0.82-second visual landing, with a full-intensity impact at 1.0 sharpness and a 0.65-second rumble that holds full intensity for the first 0.35 seconds. Joins, Tap In buildup, and energy-sensitive Pinball gameplay cues and UIKit fallbacks are stronger. Navigation, audio policy, fairness, participant restart rules, and cancellation remain unchanged.
+
+Local validation passed: 262 AppTests, 26 regular UI executions (four opt-in screenshot capture tests skipped), follow-up cancellation tests, final 31 timeline/feedback tests, signed Debug device build, strict signature verification, and installation/launch on BDR 17. Device logs confirm Core Haptics delivery. The owner preferred the restored 0.65-second finish and confirmed the faster pacing. See the process document for local evidence paths. Version 1.2 submission details are recorded above.
+
+Physical acceptance: compare the previous and revised app on an iPhone held in hand and resting on a table. Confirm prompt feedback, distinct accelerating taps, a clearly stronger result, late-join restart and cancellation without stale pulses, and the three-finger theme shortcut. Use the Debug `NativeFeedback` delivery logs to verify `coreHaptics` playback, including after background/resume. Automated validation and device-review status are recorded in the implementation handoff; older release validation and submitted metadata below remain historical.
+
+
 Last audited: September 6, 2026
 
 ## Bottom line

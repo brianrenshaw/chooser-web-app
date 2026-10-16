@@ -484,7 +484,7 @@ public final class NativeFeedbackCoordinator: NativeFeedbackCoordinating {
             selectionGenerator.prepare()
         case .pinballLaunch(let strength):
             let clamped = min(1, max(0, strength))
-            rigidImpactGenerator.impactOccurred(intensity: 0.46 + 0.40 * clamped)
+            rigidImpactGenerator.impactOccurred(intensity: 0.80 + 0.20 * clamped)
             rigidImpactGenerator.prepare()
         case .pinballCollision:
             guard let event = cue.hapticEventSpecs.first else { return false }
@@ -679,7 +679,7 @@ public final class NativeFeedbackCoordinator: NativeFeedbackCoordinating {
     private func logDelivery(_ cue: NativeFeedbackCue, delivery: NativeFeedbackDelivery) {
 #if DEBUG
         os_signpost(.event, log: Self.diagnosticLog, name: "Feedback Delivery")
-        Self.logger.debug(
+        Self.logger.notice(
             "cue=\(String(describing: cue), privacy: .public) delivery=\(String(describing: delivery), privacy: .public)"
         )
 #endif
@@ -688,7 +688,7 @@ public final class NativeFeedbackCoordinator: NativeFeedbackCoordinating {
     private func logEnginePrepared(context: String) {
 #if DEBUG
         os_signpost(.event, log: Self.diagnosticLog, name: "Haptic Engine Prepared")
-        Self.logger.debug("Core Haptics ready context=\(context, privacy: .public)")
+        Self.logger.notice("Core Haptics ready context=\(context, privacy: .public)")
 #endif
     }
 
@@ -745,11 +745,11 @@ extension NativeFeedbackCue {
             return [Self.transientSpec(intensity: 0.18, sharpness: 0.55, at: 0)]
         case .entryCommitted:
             return [
-                Self.transientSpec(intensity: 0.42, sharpness: 0.24, at: 0),
+                Self.transientSpec(intensity: 0.85, sharpness: 0.75, at: 0),
                 NativeHapticEventSpec(
                     kind: .continuous,
                     intensity: 1.0,
-                    sharpness: 0.06,
+                    sharpness: 0.45,
                     relativeTime: 0.008,
                     duration: 0.11
                 )
@@ -773,20 +773,11 @@ extension NativeFeedbackCue {
         case .choiceWinner:
             return Self.choiceWinnerEventSpecs(offset: 0)
         case .pinballSettle:
-            return [
-                Self.transientSpec(intensity: 0.84, sharpness: 0.20, at: 0),
-                NativeHapticEventSpec(
-                    kind: .continuous,
-                    intensity: 1.0,
-                    sharpness: 0.055,
-                    relativeTime: 0.008,
-                    duration: 0.21
-                )
-            ]
+            return Self.choiceWinnerEventSpecs(offset: 0)
         case .undo:
             return [
                 Self.transientSpec(intensity: 0.28, sharpness: 0.42, at: 0),
-                Self.transientSpec(intensity: 0.16, sharpness: 0.22, at: 0.075)
+                Self.transientSpec(intensity: 0.16, sharpness: 0.45, at: 0.075)
             ]
         case .clearCommitted:
             return [
@@ -796,19 +787,19 @@ extension NativeFeedbackCue {
         case .confirmation:
             return [
                 Self.transientSpec(intensity: 0.34, sharpness: 0.40, at: 0),
-                Self.transientSpec(intensity: 0.20, sharpness: 0.22, at: 0.10)
+                Self.transientSpec(intensity: 0.20, sharpness: 0.45, at: 0.10)
             ]
         case .pinballLaunch(let strength):
             let clamped = Float(min(1, max(0, strength)))
             return [
                 Self.transientSpec(
-                    intensity: 0.36 + 0.30 * clamped,
-                    sharpness: 0.48 + 0.30 * clamped,
+                    intensity: 0.75 + 0.23 * clamped,
+                    sharpness: 0.70 + 0.28 * clamped,
                     at: 0
                 ),
                 Self.transientSpec(
-                    intensity: 0.12 + 0.12 * clamped,
-                    sharpness: 0.18 + 0.15 * clamped,
+                    intensity: 0.40 + 0.20 * clamped,
+                    sharpness: 0.55 + 0.25 * clamped,
                     at: 0.055
                 )
             ]
@@ -819,15 +810,15 @@ extension NativeFeedbackCue {
             let cornerIntensity: Float = isCorner ? 0.055 : 0
             let cornerSharpness: Float = isCorner ? 0.04 : 0
             let intensity = min(
-                0.78,
-                0.12
-                    + 0.60 * Float(pow(Double(effectiveEnergy), 0.75))
+                0.98,
+                0.38
+                    + 0.54 * Float(pow(Double(effectiveEnergy), 0.75))
                     + cornerIntensity
             )
             let sharpness = min(
-                0.86,
-                0.24
-                    + 0.46 * normalImpulse * Float(sqrt(Double(speed)))
+                1.0,
+                0.50
+                    + 0.36 * normalImpulse * Float(sqrt(Double(speed)))
                     + 0.10 * speed
                     + cornerSharpness
             )
@@ -839,14 +830,14 @@ extension NativeFeedbackCue {
             )
             return [
                 Self.transientSpec(
-                    intensity: 0.60 + 0.18 * energy,
-                    sharpness: 0.38 + 0.18 * energy,
+                    intensity: 0.82 + 0.16 * energy,
+                    sharpness: 0.65 + 0.25 * energy,
                     at: 0
                 ),
                 NativeHapticEventSpec(
                     kind: .continuous,
                     intensity: 1,
-                    sharpness: 0.07,
+                    sharpness: 0.45,
                     relativeTime: 0.004,
                     duration: 0.075
                 )
@@ -867,8 +858,8 @@ extension NativeFeedbackCue {
                     parameter: .intensityControl,
                     relativeTime: 0.008,
                     controlPoints: [
-                        .init(relativeTime: 0, value: 0.38),
-                        .init(relativeTime: 0.040, value: 0.22),
+                        .init(relativeTime: 0, value: 0.85),
+                        .init(relativeTime: 0.040, value: 0.65),
                         .init(relativeTime: 0.110, value: 0.05)
                     ]
                 )
@@ -885,7 +876,7 @@ extension NativeFeedbackCue {
                     }
                 )
             ]
-        case .choiceWinner:
+        case .choiceWinner, .pinballSettle:
             let winner = ChoiceAnticipationTimeline.chooser.winnerHaptic
             return [
                 NativeHapticParameterCurveSpec(
@@ -894,20 +885,6 @@ extension NativeFeedbackCue {
                     controlPoints: winner.intensityCurve.map {
                         .init(relativeTime: $0.relativeTime, value: $0.intensity)
                     }
-                )
-            ]
-        case .pinballSettle:
-            return [
-                NativeHapticParameterCurveSpec(
-                    parameter: .intensityControl,
-                    relativeTime: 0.008,
-                    controlPoints: [
-                        .init(relativeTime: 0, value: 0.70),
-                        .init(relativeTime: 0.035, value: 0.82),
-                        .init(relativeTime: 0.105, value: 0.47),
-                        .init(relativeTime: 0.170, value: 0.18),
-                        .init(relativeTime: 0.210, value: 0.03)
-                    ]
                 )
             ]
         case .pinballFairBounce(let speedFraction, let normalImpulseFraction):
@@ -920,8 +897,8 @@ extension NativeFeedbackCue {
                     parameter: .intensityControl,
                     relativeTime: 0.004,
                     controlPoints: [
-                        .init(relativeTime: 0, value: 0.40 + 0.12 * energy),
-                        .init(relativeTime: 0.024, value: 0.25 + 0.07 * energy),
+                        .init(relativeTime: 0, value: 0.75 + 0.15 * energy),
+                        .init(relativeTime: 0.024, value: 0.55 + 0.10 * energy),
                         .init(relativeTime: 0.075, value: 0.04)
                     ]
                 )
@@ -949,7 +926,7 @@ extension NativeFeedbackCue {
             return Self.choiceWinnerUIKitPulses(
                 offset: ChoiceAnticipationTimeline.chooser.winnerContactTime
             )
-        case .choiceWinner:
+        case .choiceWinner, .pinballSettle:
             return Self.choiceWinnerUIKitPulses(offset: 0)
         default:
             return nil
@@ -958,8 +935,6 @@ extension NativeFeedbackCue {
 
     var uiKitImmediatePulse: NativeUIKitSequencePulse? {
         switch self {
-        case .pinballSettle:
-            return .init(impact: .heavy, intensity: 0.92, relativeTime: 0)
         case .pinballFairBounce(let speedFraction, let normalImpulseFraction):
             let energy = CGFloat(Self.fairBounceEnergy(
                 speedFraction: speedFraction,
@@ -967,7 +942,7 @@ extension NativeFeedbackCue {
             ))
             return .init(
                 impact: .rigid,
-                intensity: 0.66 + 0.16 * energy,
+                intensity: 0.88 + 0.12 * energy,
                 relativeTime: 0
             )
         default:
@@ -977,7 +952,7 @@ extension NativeFeedbackCue {
 
     var isSequence: Bool {
         switch self {
-        case .entryCommitted, .togetherCountdown, .tapInCountdown, .chooserWinner, .choiceWinner:
+        case .entryCommitted, .togetherCountdown, .tapInCountdown, .chooserWinner, .choiceWinner, .pinballSettle:
             return true
         default:
             return false
@@ -985,16 +960,16 @@ extension NativeFeedbackCue {
     }
 
     private static let tapInAnticipationSpecs: [NativeHapticEventSpec] = [
-        transientSpec(intensity: 0.46, sharpness: 0.26, at: 0.06),
-        transientSpec(intensity: 0.62, sharpness: 0.30, at: 0.40),
-        transientSpec(intensity: 0.78, sharpness: 0.34, at: 0.69),
-        transientSpec(intensity: 0.92, sharpness: 0.38, at: 0.89)
+        transientSpec(intensity: 0.78, sharpness: 0.65, at: 0.06),
+        transientSpec(intensity: 0.86, sharpness: 0.73, at: 0.40),
+        transientSpec(intensity: 0.93, sharpness: 0.81, at: 0.69),
+        transientSpec(intensity: 0.98, sharpness: 0.90, at: 0.89)
     ]
 
     private static let tapInAnticipationUIKitPulses: [NativeUIKitSequencePulse] = [
-        .init(impact: .medium, intensity: 0.60, relativeTime: 0.06),
-        .init(impact: .medium, intensity: 0.76, relativeTime: 0.40),
-        .init(impact: .heavy, intensity: 0.90, relativeTime: 0.69),
+        .init(impact: .heavy, intensity: 0.85, relativeTime: 0.06),
+        .init(impact: .heavy, intensity: 0.92, relativeTime: 0.40),
+        .init(impact: .heavy, intensity: 0.95, relativeTime: 0.69),
         .init(impact: .heavy, intensity: 1.0, relativeTime: 0.89)
     ]
 
@@ -1019,8 +994,8 @@ extension NativeFeedbackCue {
     }
 
     private static let entryCommittedUIKitPulses: [NativeUIKitSequencePulse] = [
-        .init(impact: .medium, intensity: 0.52, relativeTime: 0),
-        .init(impact: .soft, intensity: 0.24, relativeTime: 0.070)
+        .init(impact: .heavy, intensity: 1.0, relativeTime: 0),
+        .init(impact: .heavy, intensity: 0.65, relativeTime: 0.070)
     ]
 
     private static func choiceWinnerUIKitPulses(
@@ -1028,10 +1003,9 @@ extension NativeFeedbackCue {
     ) -> [NativeUIKitSequencePulse] {
         [
             .init(impact: .heavy, intensity: 1.0, relativeTime: offset),
-            .init(impact: .heavy, intensity: 0.78, relativeTime: offset + 0.100),
-            .init(impact: .medium, intensity: 0.52, relativeTime: offset + 0.320),
-            .init(impact: .soft, intensity: 0.28, relativeTime: offset + 0.580),
-            .init(impact: .soft, intensity: 0.16, relativeTime: offset + 0.740)
+            .init(impact: .heavy, intensity: 1.0, relativeTime: offset + 0.140),
+            .init(impact: .heavy, intensity: 0.95, relativeTime: offset + 0.340),
+            .init(impact: .medium, intensity: 0.65, relativeTime: offset + 0.540)
         ]
     }
 

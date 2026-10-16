@@ -11,6 +11,7 @@ final class ChooserAppModelTests: XCTestCase {
         let feedback = RecordingFeedbackCoordinator()
         let model = ChooserAppModel(
             modeStore: MemoryLaunchDefaultModeStore(storedMode: .together),
+            onboardingStore: MemoryOnboardingProgressStore(),
             togetherCore: TogetherChooserCore(
                 scheduler: scheduler,
                 randomIndexGenerator: FixedRandomIndexGenerator(index: 2)
@@ -41,6 +42,7 @@ final class ChooserAppModelTests: XCTestCase {
         let scheduler = ManualChooserScheduler()
         let model = ChooserAppModel(
             modeStore: MemoryLaunchDefaultModeStore(storedMode: .together),
+            onboardingStore: MemoryOnboardingProgressStore(),
             togetherCore: TogetherChooserCore(scheduler: scheduler),
             feedback: RecordingFeedbackCoordinator()
         )
@@ -71,6 +73,7 @@ final class ChooserAppModelTests: XCTestCase {
         let feedback = RecordingFeedbackCoordinator()
         let model = ChooserAppModel(
             modeStore: MemoryLaunchDefaultModeStore(storedMode: .together),
+            onboardingStore: MemoryOnboardingProgressStore(),
             feedback: feedback
         )
         model.togetherTouchBegan(.init(id: 1, location: CGPoint(x: 80, y: 120)))
@@ -92,6 +95,7 @@ final class ChooserAppModelTests: XCTestCase {
         let feedback = RecordingFeedbackCoordinator()
         let model = ChooserAppModel(
             modeStore: MemoryLaunchDefaultModeStore(storedMode: .together),
+            onboardingStore: MemoryOnboardingProgressStore(),
             togetherCore: togetherCore,
             feedback: feedback
         )
@@ -113,7 +117,7 @@ final class ChooserAppModelTests: XCTestCase {
             feedback.cues.filter { $0 == .togetherCountdown }.count,
             1
         )
-        XCTAssertEqual(ChoiceAnticipationTimeline.chooser.duration, 2.75)
+        XCTAssertEqual(ChoiceAnticipationTimeline.chooser.duration, 1.65)
 
         model.requestModeChange(to: .pinball)
         XCTAssertEqual(model.mode, .together)
@@ -124,6 +128,7 @@ final class ChooserAppModelTests: XCTestCase {
         let feedback = RecordingFeedbackCoordinator()
         let model = ChooserAppModel(
             modeStore: MemoryLaunchDefaultModeStore(storedMode: .together),
+            onboardingStore: MemoryOnboardingProgressStore(),
             togetherCore: TogetherChooserCore(
                 scheduler: scheduler,
                 randomIndexGenerator: FixedRandomIndexGenerator(index: 0)
@@ -159,6 +164,7 @@ final class ChooserAppModelTests: XCTestCase {
         let feedback = RecordingFeedbackCoordinator()
         let model = ChooserAppModel(
             modeStore: MemoryLaunchDefaultModeStore(storedMode: .together),
+            onboardingStore: MemoryOnboardingProgressStore(),
             togetherCore: TogetherChooserCore(scheduler: scheduler),
             feedback: feedback
         )
@@ -188,6 +194,7 @@ final class ChooserAppModelTests: XCTestCase {
     func testTapInProvisionalTouchCanBeClearedBySwitchingModes() {
         let model = ChooserAppModel(
             modeStore: MemoryLaunchDefaultModeStore(storedMode: .tapIn),
+            onboardingStore: MemoryOnboardingProgressStore(),
             feedback: RecordingFeedbackCoordinator()
         )
         model.tapInTouchBegan(.init(id: 7, location: CGPoint(x: 150, y: 220)))
@@ -205,6 +212,7 @@ final class ChooserAppModelTests: XCTestCase {
         let feedback = RecordingFeedbackCoordinator()
         let model = ChooserAppModel(
             modeStore: MemoryLaunchDefaultModeStore(storedMode: .tapIn),
+            onboardingStore: MemoryOnboardingProgressStore(),
             feedback: feedback
         )
 
@@ -224,6 +232,7 @@ final class ChooserAppModelTests: XCTestCase {
         let tapInCore = TapInChooserCore(scheduler: scheduler)
         let model = ChooserAppModel(
             modeStore: MemoryLaunchDefaultModeStore(storedMode: .tapIn),
+            onboardingStore: MemoryOnboardingProgressStore(),
             tapInCore: tapInCore,
             feedback: RecordingFeedbackCoordinator()
         )
@@ -246,6 +255,7 @@ final class ChooserAppModelTests: XCTestCase {
         let feedback = RecordingFeedbackCoordinator()
         let model = ChooserAppModel(
             modeStore: MemoryLaunchDefaultModeStore(storedMode: .tapIn),
+            onboardingStore: MemoryOnboardingProgressStore(),
             feedback: feedback
         )
         XCTAssertTrue(model.addTapInEntryForAccessibility())
@@ -265,6 +275,7 @@ final class ChooserAppModelTests: XCTestCase {
         )
         let model = ChooserAppModel(
             modeStore: MemoryLaunchDefaultModeStore(storedMode: .together),
+            onboardingStore: MemoryOnboardingProgressStore(),
             togetherCore: togetherCore,
             feedback: RecordingFeedbackCoordinator()
         )
@@ -284,6 +295,26 @@ final class ChooserAppModelTests: XCTestCase {
 
         XCTAssertEqual(model.mode, .pinball)
         XCTAssertNil(model.confirmation)
+    }
+
+    func testStartingAnotherPinballRoundStopsTheLongWinnerRumble() async throws {
+        for action in 0..<3 {
+            let feedback = RecordingFeedbackCoordinator()
+            let model = makePinballModel(feedback: feedback)
+            model.startPinball(reduceMotion: true)
+            try await Task.sleep(for: .milliseconds(600))
+            guard case .revealed = model.pinballPhase else {
+                return XCTFail("Expected a completed Pinball choice")
+            }
+            let cancellations = feedback.sequenceCancelCount
+            switch action {
+            case 0: model.playPinballAgain(reduceMotion: true)
+            case 1: model.dismissPinballResult()
+            default: model.newPinballGroup()
+            }
+            XCTAssertGreaterThan(feedback.sequenceCancelCount, cancellations)
+            XCTAssertEqual(model.pinballPhase, .collecting)
+        }
     }
 
     func testPinballResultSwitchesModesImmediatelyAndClearsSeats() async throws {
@@ -577,6 +608,7 @@ final class ChooserAppModelTests: XCTestCase {
         let feedback = RecordingFeedbackCoordinator()
         let model = ChooserAppModel(
             modeStore: MemoryLaunchDefaultModeStore(storedMode: .together),
+            onboardingStore: MemoryOnboardingProgressStore(),
             feedback: feedback
         )
         XCTAssertEqual(feedback.prepareCount, 1)
@@ -594,6 +626,7 @@ final class ChooserAppModelTests: XCTestCase {
         let feedback = RecordingFeedbackCoordinator()
         let model = ChooserAppModel(
             modeStore: MemoryLaunchDefaultModeStore(storedMode: .pinball),
+            onboardingStore: MemoryOnboardingProgressStore(),
             feedback: feedback
         )
         model.updatePinballPlayfield(size: CGSize(width: 390, height: 700))
@@ -654,6 +687,7 @@ final class ChooserAppModelTests: XCTestCase {
                     // otherwise needs a private cancel.
                     let model = ChooserAppModel(
                         modeStore: MemoryLaunchDefaultModeStore(storedMode: .pinball),
+                        onboardingStore: MemoryOnboardingProgressStore(),
                         feedback: RecordingFeedbackCoordinator()
                     )
                     model.updatePinballPlayfield(size: size)
@@ -746,6 +780,7 @@ final class ChooserAppModelTests: XCTestCase {
     ) -> ChooserAppModel {
         let model = ChooserAppModel(
             modeStore: MemoryLaunchDefaultModeStore(storedMode: .pinball),
+            onboardingStore: MemoryOnboardingProgressStore(),
             feedback: feedback
         )
         model.updatePinballPlayfield(size: CGSize(width: 390, height: 700))

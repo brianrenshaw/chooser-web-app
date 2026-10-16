@@ -12,7 +12,7 @@ public struct TogetherTouchIdentity: Hashable, Codable, Sendable {
 }
 
 public struct TogetherTiming: Equatable, Sendable {
-    public static let defaultSettlingDuration: TimeInterval = 1.0
+    public static let defaultSettlingDuration: TimeInterval = 0.35
 
     public let settlingDuration: TimeInterval
     public let countdownDuration: TimeInterval

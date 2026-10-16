@@ -12,13 +12,19 @@ public enum ChooserThemeAppearance: String, Codable, Sendable {
 /// intentionally abstract recipes rather than copied game imagery.
 public enum BoardSurfaceComposition: String, Codable, CaseIterable, Sendable {
     case verticalWatercolorWash
-    case coralFeatherField
-    case brightLeafField
-    case parchmentMedallion
-    case warmFrescoMedallion
-    case goldenForestClearing
-    case midnightRedEdge
+    case redLacquerField
+    case rainforestClearing
+    case slateForge
+    case mediterraneanMap
+    case honeyAutumnTree
+    case amberPlumPainting
     case layeredScreenprint
+    /// Candlelit oxblood leather with blind-tooled circle, ticks and pentagon.
+    case tooledGrimoire
+    /// Sunlit valley under a dark canopy, with a turquoise river.
+    case canopyRiverValley
+    /// Leaded dusk-glass shards around a rose window, in a stone frame.
+    case roseWindow
 }
 
 /// Surface texture is independent from the material used by rings and chits.
@@ -31,6 +37,9 @@ public enum BoardSurfaceTextureKind: String, Codable, CaseIterable, Sendable {
     case pressedPaper
     case midnightSpeckle
     case screenprintRegistration
+    case leatherGrain
+    case paintedCanopy
+    case cathedralGlass
 
     var rendererFinish: BoardPieceFinish {
         switch self {
@@ -42,6 +51,28 @@ public enum BoardSurfaceTextureKind: String, Codable, CaseIterable, Sendable {
         case .pressedPaper: .pressedWoodPaper
         case .midnightSpeckle: .midnightEnamel
         case .screenprintRegistration: .flatScreenprint
+        case .leatherGrain: .waxSeal
+        // Brushwork on the board reads as soft flecks; grain belongs to the pieces.
+        case .paintedCanopy: .watercolorEggshell
+        case .cathedralGlass: .leadedGlass
+        }
+    }
+
+    /// How strongly the surface grain draws relative to the authored texture
+    /// opacity. The original eight keep 1, so they render exactly as before;
+    /// leather, brushwork and cathedral glass are meant to be felt.
+    var surfaceStrength: Double {
+        switch self {
+        case .featherFibers, .leafFibers, .frescoGrain, .pressedPaper,
+             .screenprintRegistration:
+            1
+        // Cold-press paper, slate and brushwork are meant to be felt.
+        case .watercolorFlecks: 1.6
+        case .parchmentPatina: 1.6
+        case .midnightSpeckle: 1.4
+        case .leatherGrain: 1.8
+        case .paintedCanopy: 1.8
+        case .cathedralGlass: 1.4
         }
     }
 }
@@ -105,6 +136,12 @@ public enum BoardPieceFinish: String, Codable, Sendable {
     case pressedWoodPaper
     case midnightEnamel
     case flatScreenprint
+    /// Pressed sealing wax: pebbled mottle, a stamped inner ring, a poured rim.
+    case waxSeal
+    /// Satin paint over wood, with long grain.
+    case paintedWood
+    /// Lit glass with streaks, held in a near-black lead rim.
+    case leadedGlass
 }
 
 struct BoardPieceMaterialPresentation: Equatable, Sendable {
@@ -178,6 +215,27 @@ extension BoardPieceFinish {
                 innerOcclusionOpacity: 0.22, reliefRotationDegrees: 0,
                 textureMultiplier: 1.60, shadowMultiplier: 0.76
             )
+        case .waxSeal:
+            BoardPieceMaterialPresentation(
+                outerEdgeWidth: 2.6, innerEdgeWidth: 1.7, bevelOpacity: 0.30,
+                edgeTintOpacity: 0.66, reliefOpacity: 0.26,
+                innerOcclusionOpacity: 0.38, reliefRotationDegrees: -38,
+                textureMultiplier: 2.20, shadowMultiplier: 1.12
+            )
+        case .paintedWood:
+            BoardPieceMaterialPresentation(
+                outerEdgeWidth: 2.4, innerEdgeWidth: 1.7, bevelOpacity: 0.22,
+                edgeTintOpacity: 0.62, reliefOpacity: 0.16,
+                innerOcclusionOpacity: 0.30, reliefRotationDegrees: -8,
+                textureMultiplier: 2.30, shadowMultiplier: 0.94
+            )
+        case .leadedGlass:
+            BoardPieceMaterialPresentation(
+                outerEdgeWidth: 3.2, innerEdgeWidth: 1.9, bevelOpacity: 0.36,
+                edgeTintOpacity: 0.74, reliefOpacity: 0.24,
+                innerOcclusionOpacity: 0.34, reliefRotationDegrees: -30,
+                textureMultiplier: 1.70, shadowMultiplier: 1.00
+            )
         }
     }
 }
@@ -191,6 +249,48 @@ public enum PinballMaterialKind: String, Codable, Sendable {
     case amberResin
     case manaEnamel
     case saffronScreenprint
+    case garnetBead
+    case cutEmerald
+    case clearGlassBead
+}
+
+/// Extra geometry drawn on top of the shared ball layers. Kept in the shared
+/// presentation so the SpriteKit ball and every SwiftUI miniature match.
+enum PinballBallOrnament: Equatable, Sendable {
+    case none
+    /// A hot specular spot and a soft colored aura.
+    case glassBead
+    /// An octagonal table and eight facet rays.
+    case facetedGem
+    /// A translucent body with a bright caustic arc.
+    case clearGlass
+    /// A small sheen and a scatter of speckles, like a wooden egg.
+    case speckledEgg
+    /// A milled edge and a struck inner ring.
+    case coin
+    /// A vertical slit pupil and a catch-light: an eye of newt.
+    case slitPupil
+}
+
+/// How Pinball's ownership rays are stroked. Winner rays always use the
+/// participant color, whatever the base style.
+public enum BoardDividerStyle: String, Codable, Sendable {
+    /// Keyline then primary line. The original look.
+    case inkKeyline
+    /// A pressed groove with a dashed thread, like a leather seam.
+    case stitchedSeam
+    /// A twisted rope: primary line with short dark dashes across it.
+    case rope
+    /// A stone bar: dark lead edge, stone body, thin highlight.
+    case stoneMullion
+    /// Two slightly offset graphite strokes, like a field-guide sketch.
+    case pencil
+    /// A dotted land route on a parchment keyline, from a map board.
+    case dottedRoute
+    /// A twig with small kinks along its length.
+    case twig
+    /// A fine gold-ink line in a faint groove.
+    case goldInlay
 }
 
 /// Shared authored ball relief so the live SpriteKit ball and every miniature
@@ -203,6 +303,7 @@ struct PinballMaterialPresentation: Equatable, Sendable {
     let rimAlpha: CGFloat
     let markRadius: CGFloat
     let markAlpha: CGFloat
+    var ornament: PinballBallOrnament = .none
 
     static let fallback = PinballMaterialPresentation(
         edgeWidth: 1.7,
@@ -221,42 +322,68 @@ extension PinballMaterialKind {
         case .coralEnamel:
             PinballMaterialPresentation(
                 edgeWidth: 2.0, shadeRadius: 0.72, shadeAlpha: 0.15,
-                rimWidth: 1.0, rimAlpha: 0.42, markRadius: 0.13, markAlpha: 0.18
+                rimWidth: 1.0, rimAlpha: 0.42, markRadius: 0.13, markAlpha: 0.18,
+                ornament: .speckledEgg
             )
         case .emeraldEnamel:
             PinballMaterialPresentation(
                 edgeWidth: 2.2, shadeRadius: 0.68, shadeAlpha: 0.18,
-                rimWidth: 1.3, rimAlpha: 0.48, markRadius: 0.11, markAlpha: 0.16
+                rimWidth: 1.3, rimAlpha: 0.48, markRadius: 0.11, markAlpha: 0.16,
+                ornament: .glassBead
             )
         case .flamingoEnamel:
             PinballMaterialPresentation(
                 edgeWidth: 1.9, shadeRadius: 0.74, shadeAlpha: 0.14,
-                rimWidth: 1.1, rimAlpha: 0.40, markRadius: 0.12, markAlpha: 0.16
+                rimWidth: 1.1, rimAlpha: 0.40, markRadius: 0.12, markAlpha: 0.16,
+                ornament: .glassBead
             )
         case .amberResin:
             PinballMaterialPresentation(
                 edgeWidth: 1.5, shadeRadius: 0.78, shadeAlpha: 0.10,
-                rimWidth: 1.2, rimAlpha: 0.34, markRadius: 0.18, markAlpha: 0.12
+                rimWidth: 1.2, rimAlpha: 0.34, markRadius: 0.18, markAlpha: 0.12,
+                ornament: .glassBead
             )
         case .agedCopper:
             PinballMaterialPresentation(
                 edgeWidth: 2.3, shadeRadius: 0.66, shadeAlpha: 0.24,
-                rimWidth: 1.5, rimAlpha: 0.55, markRadius: 0.10, markAlpha: 0.26
+                rimWidth: 1.5, rimAlpha: 0.55, markRadius: 0.10, markAlpha: 0.26,
+                ornament: .coin
             )
         case .romanGold:
             PinballMaterialPresentation(
                 edgeWidth: 2.1, shadeRadius: 0.70, shadeAlpha: 0.19,
-                rimWidth: 1.4, rimAlpha: 0.50, markRadius: 0.12, markAlpha: 0.20
+                rimWidth: 1.4, rimAlpha: 0.50, markRadius: 0.12, markAlpha: 0.20,
+                ornament: .coin
             )
         case .manaEnamel:
             PinballMaterialPresentation(
                 edgeWidth: 2.1, shadeRadius: 0.70, shadeAlpha: 0.17,
-                rimWidth: 1.2, rimAlpha: 0.46, markRadius: 0.14, markAlpha: 0.20
+                rimWidth: 1.2, rimAlpha: 0.46, markRadius: 0.14, markAlpha: 0.20,
+                ornament: .slitPupil
             )
         case .saffronScreenprint:
             PinballMaterialPresentation(
                 edgeWidth: 2.5, shadeRadius: 0.68, shadeAlpha: 0.08,
-                rimWidth: 1.7, rimAlpha: 0.62, markRadius: 0, markAlpha: 0
+                rimWidth: 1.7, rimAlpha: 0.62, markRadius: 0, markAlpha: 0,
+                ornament: .glassBead
+            )
+        case .garnetBead:
+            PinballMaterialPresentation(
+                edgeWidth: 1.6, shadeRadius: 0.74, shadeAlpha: 0.30,
+                rimWidth: 1.0, rimAlpha: 0.36, markRadius: 0, markAlpha: 0,
+                ornament: .glassBead
+            )
+        case .cutEmerald:
+            PinballMaterialPresentation(
+                edgeWidth: 1.8, shadeRadius: 0.72, shadeAlpha: 0.26,
+                rimWidth: 1.2, rimAlpha: 0.44, markRadius: 0, markAlpha: 0,
+                ornament: .facetedGem
+            )
+        case .clearGlassBead:
+            PinballMaterialPresentation(
+                edgeWidth: 1.4, shadeRadius: 0.80, shadeAlpha: 0.12,
+                rimWidth: 1.3, rimAlpha: 0.70, markRadius: 0, markAlpha: 0,
+                ornament: .clearGlass
             )
         }
     }
@@ -281,6 +408,10 @@ public struct ChooserVisualTheme: Sendable {
     public let ballImpactHex: String
     public let dividerHex: String
     public let dividerSecondaryHex: String?
+    public let dividerStyle: BoardDividerStyle
+    /// A world whose own palette is red can supply a destructive fill that
+    /// still stands apart from its pieces. Nil keeps the shared semantic red.
+    public let destructiveOverrideHex: String?
     public let textureSeed: UInt64
     public let textureOpacity: Double
     public let separatorOpacity: Double
@@ -304,6 +435,8 @@ public struct ChooserVisualTheme: Sendable {
         ballImpactHex: String,
         dividerHex: String,
         dividerSecondaryHex: String? = nil,
+        dividerStyle: BoardDividerStyle = .inkKeyline,
+        destructiveHex: String? = nil,
         textureSeed: UInt64,
         textureOpacity: Double,
         separatorOpacity: Double,
@@ -329,6 +462,8 @@ public struct ChooserVisualTheme: Sendable {
         self.ballImpactHex = ballImpactHex
         self.dividerHex = dividerHex
         self.dividerSecondaryHex = dividerSecondaryHex
+        self.dividerStyle = dividerStyle
+        self.destructiveOverrideHex = destructiveHex
         self.textureSeed = textureSeed
         self.textureOpacity = textureOpacity
         self.separatorOpacity = separatorOpacity
@@ -408,7 +543,7 @@ public struct ChooserVisualTheme: Sendable {
 
     /// Destructive controls are semantic and intentionally consistent across
     /// worlds; their foreground is resolved rather than inherited from chrome.
-    public var destructiveControlHex: String { "#982B37" }
+    public var destructiveControlHex: String { destructiveOverrideHex ?? "#982B37" }
     public var destructiveControlForegroundHex: String {
         ChooserColorTheme.bestContrastingHex(
             against: destructiveControlHex,
@@ -511,6 +646,9 @@ public enum ChooserColorTheme: String, CaseIterable, Codable, Identifiable, Send
     case everdell
     case lizardWizard = "lizard-wizard"
     case leaders
+    case resArcana = "res-arcana"
+    case everdellEmerland = "everdell-emerland"
+    case sagrada
 
     public static let defaultTheme: ChooserColorTheme = .wingspanOriginal
     public static var wingspanAsia: ChooserColorTheme { .wingspanNectar }
@@ -527,23 +665,28 @@ public enum ChooserColorTheme: String, CaseIterable, Codable, Identifiable, Send
         case .everdell: "Everdell"
         case .lizardWizard: "Lizard Wizard"
         case .leaders: "Leaders"
+        case .resArcana: "Res Arcana"
+        case .everdellEmerland: "Everdell Emerland"
+        case .sagrada: "Sagrada"
         }
     }
 
     public var visualTheme: ChooserVisualTheme {
         switch self {
         case .wingspanOriginal:
+            // Field-guide watercolor on cold-press paper: wet-edged washes,
+            // lightly speckled egg pieces, pencil dividers, a robin's-egg ball.
             ChooserVisualTheme(
                 appearance: .light,
                 surfaceRecipe: BoardSurfaceRecipe(
                     composition: .verticalWatercolorWash,
                     stops: [
-                        BoardSurfaceStop(hex: "#DFE6E0", location: 0),
-                        BoardSurfaceStop(hex: "#C9D7D4", location: 0.58),
-                        BoardSurfaceStop(hex: "#7EAFCA", location: 1)
+                        BoardSurfaceStop(hex: "#E9ECE3", location: 0),
+                        BoardSurfaceStop(hex: "#D3DFDA", location: 0.55),
+                        BoardSurfaceStop(hex: "#8DB9D0", location: 1)
                     ],
-                    atmosphereHexValues: ["#F7F4EC", "#D95C4E"],
-                    atmosphereOpacities: [0.04, 0.025],
+                    atmosphereHexValues: ["#D95C4E", "#3D78A1"],
+                    atmosphereOpacities: [0.08, 0.10],
                     texture: .watercolorFlecks
                 ),
                 surfaceInkHex: "#27363B", onChromeInkHex: "#101D21",
@@ -551,160 +694,182 @@ public enum ChooserColorTheme: String, CaseIterable, Codable, Identifiable, Send
                 detailAccentHex: "#D5A62D", secondaryDetailHex: "#7EAFCA",
                 participantHexValues: ["#D95C4E", "#D5A62D", "#3D78A1", "#508467", "#80658A"],
                 pieceFinish: .watercolorEggshell, pinballMaterial: .coralEnamel,
-                ballHex: "#D95C4E", ballEdgeHex: "#9E3F39",
-                ballTailHex: "#D95C4E", ballImpactHex: "#27363B",
-                dividerHex: "#27363B", dividerSecondaryHex: "#F7F4EC",
+                ballHex: "#9FD0E3", ballEdgeHex: "#4E8AA4",
+                ballTailHex: "#7EAFCA", ballImpactHex: "#27363B",
+                dividerHex: "#4A4F52", dividerSecondaryHex: "#F7F4EC",
+                dividerStyle: .pencil,
                 textureSeed: 0x57494E475350414E, textureOpacity: 0.026,
-                separatorOpacity: 0.30, dividerOpacity: 0.32
+                separatorOpacity: 0.30, dividerOpacity: 0.55
             )
         case .wingspanNectar:
+            // Red lacquer: a lit center, deep edges, a soft gloss and a
+            // tone-on-tone peacock eye-spot behind the play area.
             ChooserVisualTheme(
                 appearance: .dark,
                 surfaceRecipe: BoardSurfaceRecipe(
-                    composition: .coralFeatherField,
+                    composition: .redLacquerField,
                     stops: [
-                        BoardSurfaceStop(hex: "#A5353C", location: 0),
-                        BoardSurfaceStop(hex: "#B43F43", location: 0.52),
-                        BoardSurfaceStop(hex: "#BC4848", location: 1)
+                        BoardSurfaceStop(hex: "#C24B4E", location: 0),
+                        BoardSurfaceStop(hex: "#9E2F36", location: 0.50),
+                        BoardSurfaceStop(hex: "#5A141C", location: 1)
                     ],
-                    atmosphereHexValues: ["#D66358", "#2BA5A1"],
-                    atmosphereOpacities: [0.10, 0.035],
+                    atmosphereHexValues: ["#E07068", "#FFFFFF"],
+                    atmosphereOpacities: [0.16, 0.14],
                     texture: .featherFibers
                 ),
                 surfaceInkHex: "#FFF5E8", onChromeInkHex: "#FFF5E8",
                 chromeHex: "#0C6B4D", actionAccentHex: "#0C6B4D",
                 detailAccentHex: "#2BA5A1", secondaryDetailHex: "#D4A42E",
-                participantHexValues: ["#0C6B4D", "#20539A", "#142D4A", "#2BA5A1", "#D4A42E"],
+                participantHexValues: ["#0C6B4D", "#20539A", "#F3E3C3", "#2BA5A1", "#D4A42E"],
                 pieceFinish: .peacockJewelEnamel, pinballMaterial: .emeraldEnamel,
-                ballHex: "#0C6B4D", ballEdgeHex: "#064832",
+                ballHex: "#0C6B4D", ballEdgeHex: "#033524",
                 ballTailHex: "#2BA5A1", ballImpactHex: "#D4A42E",
-                dividerHex: "#FFF5E8", dividerSecondaryHex: "#064832",
+                dividerHex: "#F3E3C3", dividerSecondaryHex: "#3E0C12",
                 textureSeed: 0x4153494150454143, textureOpacity: 0.032,
-                separatorOpacity: 0.38, dividerOpacity: 0.38
+                separatorOpacity: 0.38, dividerOpacity: 0.60
             )
         case .wingspanHummingbirds:
+            // A rainforest clearing that lets iridescent pieces do the shouting.
             ChooserVisualTheme(
                 appearance: .dark,
                 surfaceRecipe: BoardSurfaceRecipe(
-                    composition: .brightLeafField,
+                    composition: .rainforestClearing,
                     stops: [
-                        BoardSurfaceStop(hex: "#37AD4B", location: 0),
-                        BoardSurfaceStop(hex: "#25A047", location: 0.55),
-                        BoardSurfaceStop(hex: "#16883E", location: 1)
+                        BoardSurfaceStop(hex: "#5DB46E", location: 0),
+                        BoardSurfaceStop(hex: "#2E7A47", location: 0.45),
+                        BoardSurfaceStop(hex: "#0E3424", location: 1)
                     ],
-                    atmosphereHexValues: ["#0B6D35", "#EF4770"],
-                    atmosphereOpacities: [0.16, 0.025],
+                    atmosphereHexValues: ["#0B2B21", "#EF4770"],
+                    atmosphereOpacities: [0.40, 0.03],
                     texture: .leafFibers
                 ),
-                surfaceInkHex: "#0B2B21", onChromeInkHex: "#FFF9E9",
+                surfaceInkHex: "#FFF9E9", onChromeInkHex: "#FFF9E9",
                 chromeHex: "#075D38", actionAccentHex: "#EF4770",
                 detailAccentHex: "#E85A3B", secondaryDetailHex: "#F1D35A",
-                participantHexValues: ["#075D38", "#EF4770", "#E85A3B", "#F1D35A", "#0A7880"],
+                participantHexValues: ["#B0234A", "#EF4770", "#E85A3B", "#F1D35A", "#0A7880"],
                 pieceFinish: .featherJewelEnamel, pinballMaterial: .flamingoEnamel,
-                ballHex: "#EF4770", ballEdgeHex: "#A92E51",
-                ballTailHex: "#EF4770", ballImpactHex: "#E85A3B",
-                dividerHex: "#0B2B21", dividerSecondaryHex: "#FFF9E9",
+                ballHex: "#EF4770", ballEdgeHex: "#8E1F3F",
+                ballTailHex: "#EF4770", ballImpactHex: "#F1D35A",
+                dividerHex: "#FFF9E9", dividerSecondaryHex: "#0B2B21",
                 textureSeed: 0x414D455249434153, textureOpacity: 0.028,
-                separatorOpacity: 0.36, dividerOpacity: 0.58
+                separatorOpacity: 0.36, dividerOpacity: 0.60
             )
         case .nidavellir:
-            ChooserVisualTheme(
-                appearance: .light,
-                surfaceRecipe: BoardSurfaceRecipe(
-                    composition: .parchmentMedallion,
-                    stops: [
-                        BoardSurfaceStop(hex: "#F3F1EC", location: 0),
-                        BoardSurfaceStop(hex: "#DDDCD8", location: 1)
-                    ],
-                    atmosphereHexValues: ["#32383C", "#956C4D"],
-                    atmosphereOpacities: [0.18, 0.12],
-                    texture: .parchmentPatina
-                ),
-                surfaceInkHex: "#24292C", onChromeInkHex: "#F3F0E9",
-                chromeHex: "#343A3D", actionAccentHex: "#B87945",
-                detailAccentHex: "#788B94", secondaryDetailHex: "#956C4D",
-                participantHexValues: ["#B96D38", "#C6A44D", "#607B8C", "#A54D45", "#58715E"],
-                pieceFinish: .hammeredMetal, pinballMaterial: .agedCopper,
-                ballHex: "#B87945", ballEdgeHex: "#704328",
-                ballTailHex: "#B87945", ballImpactHex: "#788B94",
-                dividerHex: "#24292C", dividerSecondaryHex: "#F3F0E9",
-                textureSeed: 0x4E49444156454C4C, textureOpacity: 0.040,
-                separatorOpacity: 0.36, dividerOpacity: 0.38
-            )
-        case .concordia:
-            ChooserVisualTheme(
-                appearance: .light,
-                surfaceRecipe: BoardSurfaceRecipe(
-                    composition: .warmFrescoMedallion,
-                    stops: [
-                        BoardSurfaceStop(hex: "#C4815E", location: 0),
-                        BoardSurfaceStop(hex: "#E2B98B", location: 1)
-                    ],
-                    atmosphereHexValues: ["#701426", "#8BC4DD", "#F5E7CB"],
-                    atmosphereOpacities: [0.24, 0.12, 0.14],
-                    texture: .frescoGrain
-                ),
-                surfaceInkHex: "#4C1820", onChromeInkHex: "#FFF0D5",
-                chromeHex: "#701426", actionAccentHex: "#D7AA34",
-                detailAccentHex: "#6EAECB", secondaryDetailHex: "#F5E7CB",
-                participantHexValues: ["#B73F45", "#3D7EA6", "#72863F", "#D2A52E", "#57515A"],
-                pieceFinish: .frescoEnamel, pinballMaterial: .romanGold,
-                ballHex: "#D7AA34", ballEdgeHex: "#896716",
-                ballTailHex: "#D7AA34", ballImpactHex: "#6EAECB",
-                dividerHex: "#701426", dividerSecondaryHex: "#F5E7CB",
-                textureSeed: 0x434F4E434F524449, textureOpacity: 0.034,
-                separatorOpacity: 0.36, dividerOpacity: 0.54
-            )
-        case .everdell:
+            // Cool slate with a forge glow below, stamped coin pieces in the
+            // five dwarf class colors, gold-inlay dividers and a gold coin.
             ChooserVisualTheme(
                 appearance: .dark,
                 surfaceRecipe: BoardSurfaceRecipe(
-                    composition: .goldenForestClearing,
+                    composition: .slateForge,
                     stops: [
-                        BoardSurfaceStop(hex: "#D6B34A", location: 0),
-                        BoardSurfaceStop(hex: "#43542D", location: 0.58),
-                        BoardSurfaceStop(hex: "#102518", location: 1)
+                        BoardSurfaceStop(hex: "#4E5860", location: 0),
+                        BoardSurfaceStop(hex: "#363D43", location: 0.60),
+                        BoardSurfaceStop(hex: "#1E2226", location: 1)
                     ],
-                    atmosphereHexValues: ["#795035", "#88B7C2"],
-                    atmosphereOpacities: [0.10, 0.055],
+                    atmosphereHexValues: ["#D97A1E", "#9AA3AA"],
+                    atmosphereOpacities: [0.28, 0.06],
+                    texture: .parchmentPatina
+                ),
+                surfaceInkHex: "#F3F0E9", onChromeInkHex: "#F3F0E9",
+                chromeHex: "#2A3034", actionAccentHex: "#D4A93A",
+                detailAccentHex: "#788B94", secondaryDetailHex: "#C9A03A",
+                participantHexValues: ["#6B3F8C", "#3F7F3A", "#2F5F9E", "#D97A1E", "#B02E2E"],
+                pieceFinish: .hammeredMetal, pinballMaterial: .agedCopper,
+                ballHex: "#D4A93A", ballEdgeHex: "#7E5E14",
+                ballTailHex: "#D4A93A", ballImpactHex: "#F3F0E9",
+                dividerHex: "#C9A03A", dividerSecondaryHex: "#14171A",
+                dividerStyle: .goldInlay,
+                textureSeed: 0x4E49444156454C4C, textureOpacity: 0.040,
+                separatorOpacity: 0.36, dividerOpacity: 0.60
+            )
+        case .concordia:
+            // The map board, not the box: a parchment frame around an
+            // engraved sea with province washes, and dotted land routes.
+            ChooserVisualTheme(
+                appearance: .light,
+                surfaceRecipe: BoardSurfaceRecipe(
+                    composition: .mediterraneanMap,
+                    stops: [
+                        BoardSurfaceStop(hex: "#8BA7BC", location: 0),
+                        BoardSurfaceStop(hex: "#5F7F98", location: 1)
+                    ],
+                    atmosphereHexValues: ["#D9B44A", "#C25A35", "#E8DDC0"],
+                    atmosphereOpacities: [0.24, 0.18, 0.22],
+                    texture: .frescoGrain
+                ),
+                surfaceInkHex: "#2A1E14", onChromeInkHex: "#FFF0D5",
+                chromeHex: "#701426", actionAccentHex: "#D7AA34",
+                detailAccentHex: "#5A3E22", secondaryDetailHex: "#E8DDC0",
+                participantHexValues: ["#D9B44A", "#5E4E8E", "#C25A35", "#7E8F4A", "#B27AA0"],
+                pieceFinish: .frescoEnamel, pinballMaterial: .romanGold,
+                ballHex: "#B07A3A", ballEdgeHex: "#5A3A12",
+                ballTailHex: "#B07A3A", ballImpactHex: "#701426",
+                dividerHex: "#5A3E22", dividerSecondaryHex: "#E8DDC0",
+                dividerStyle: .dottedRoute,
+                textureSeed: 0x434F4E434F524449, textureOpacity: 0.034,
+                separatorOpacity: 0.36, dividerOpacity: 0.60
+            )
+        case .everdell:
+            // Honey light at the heart of the tree falling to russet and
+            // umber, amber resin pieces, twig dividers and a berry ball.
+            ChooserVisualTheme(
+                appearance: .dark,
+                surfaceRecipe: BoardSurfaceRecipe(
+                    composition: .honeyAutumnTree,
+                    stops: [
+                        BoardSurfaceStop(hex: "#F0C46A", location: 0),
+                        BoardSurfaceStop(hex: "#C98A3A", location: 0.35),
+                        BoardSurfaceStop(hex: "#6B3A1E", location: 0.72),
+                        BoardSurfaceStop(hex: "#2A1A10", location: 1)
+                    ],
+                    atmosphereHexValues: ["#E8B85A", "#C25A28", "#963F50"],
+                    atmosphereOpacities: [0.40, 0.35, 0.35],
                     texture: .pressedPaper
                 ),
                 surfaceInkHex: "#F3EBC9", onChromeInkHex: "#F3EBC9",
-                chromeHex: "#203821", actionAccentHex: "#D5892D",
-                detailAccentHex: "#88B7C2", secondaryDetailHex: "#795035",
-                participantHexValues: ["#5E743B", "#795035", "#88B7C2", "#D37A2C", "#963F50"],
+                chromeHex: "#3A2412", actionAccentHex: "#D5892D",
+                detailAccentHex: "#E8B85A", secondaryDetailHex: "#963F50",
+                participantHexValues: ["#D98A1E", "#5B2A5E", "#5E743B", "#B8B4AA", "#963F50"],
                 pieceFinish: .pressedWoodPaper, pinballMaterial: .amberResin,
-                ballHex: "#D5892D", ballEdgeHex: "#85521B",
-                ballTailHex: "#D5892D", ballImpactHex: "#88B7C2",
-                dividerHex: "#102417", dividerSecondaryHex: "#F3EBC9",
+                ballHex: "#6E2F70", ballEdgeHex: "#2E0F30",
+                ballTailHex: "#963F50", ballImpactHex: "#F3EBC9",
+                dividerHex: "#A87445", dividerSecondaryHex: "#2A1A10",
+                dividerStyle: .twig,
                 textureSeed: 0x4556455244454C4C, textureOpacity: 0.036,
-                separatorOpacity: 0.38, dividerOpacity: 0.58
+                separatorOpacity: 0.38, dividerOpacity: 0.60
             )
         case .lizardWizard:
+            // Plum shadow lit by a warm amber glow near the top, painted like
+            // an old fantasy cover; blue mana coin pieces and an eye-of-newt
+            // ball. No red frame, so it no longer echoes Res Arcana.
             ChooserVisualTheme(
                 appearance: .dark,
                 surfaceRecipe: BoardSurfaceRecipe(
-                    composition: .midnightRedEdge,
+                    composition: .amberPlumPainting,
                     stops: [
-                        BoardSurfaceStop(hex: "#111B38", location: 0),
-                        BoardSurfaceStop(hex: "#080E25", location: 1)
+                        BoardSurfaceStop(hex: "#D09A48", location: 0),
+                        BoardSurfaceStop(hex: "#8A5A4E", location: 0.30),
+                        BoardSurfaceStop(hex: "#4A2E50", location: 0.62),
+                        BoardSurfaceStop(hex: "#2A1A30", location: 1)
                     ],
-                    atmosphereHexValues: ["#A32F39", "#F6F0E5"],
-                    atmosphereOpacities: [0.34, 0.065],
+                    atmosphereHexValues: ["#2A1A30", "#F6E6C6"],
+                    atmosphereOpacities: [0.30, 0.05],
                     texture: .midnightSpeckle
                 ),
                 surfaceInkHex: "#F6F0E5", onChromeInkHex: "#F6F0E5",
-                chromeHex: "#A32F39", actionAccentHex: "#D99B2F",
+                chromeHex: "#5A3A62", actionAccentHex: "#F0C060",
                 detailAccentHex: "#1697A9", secondaryDetailHex: "#72813A",
-                participantHexValues: ["#1697A9", "#22776F", "#A93842", "#D99B2F", "#72813A"],
+                participantHexValues: ["#2F6FB5", "#5A3A5E", "#1697A9", "#F0C060", "#72813A"],
                 pieceFinish: .midnightEnamel, pinballMaterial: .manaEnamel,
-                ballHex: "#1697A9", ballEdgeHex: "#0C5966",
-                ballTailHex: "#1697A9", ballImpactHex: "#D99B2F",
-                dividerHex: "#F6F0E5", dividerSecondaryHex: "#080E25",
+                ballHex: "#9BB33A", ballEdgeHex: "#3A4710",
+                ballTailHex: "#F0C060", ballImpactHex: "#F6F0E5",
+                dividerHex: "#F6E6C6", dividerSecondaryHex: "#2A1A30",
                 textureSeed: 0x4C495A415244575A, textureOpacity: 0.030,
-                separatorOpacity: 0.38, dividerOpacity: 0.36
+                separatorOpacity: 0.38, dividerOpacity: 0.60
             )
         case .leaders:
+            // The cream screenprint field, with gold-ink inlay, spot gloss and
+            // black-and-white split rims like the two-sided standees.
             ChooserVisualTheme(
                 appearance: .light,
                 surfaceRecipe: BoardSurfaceRecipe(
@@ -714,8 +879,8 @@ public enum ChooserColorTheme: String, CaseIterable, Codable, Identifiable, Send
                         BoardSurfaceStop(hex: "#E8DDCB", location: 0.62),
                         BoardSurfaceStop(hex: "#D9E6DF", location: 1)
                     ],
-                    atmosphereHexValues: ["#43B2BA", "#C73366"],
-                    atmosphereOpacities: [0.08, 0.035],
+                    atmosphereHexValues: ["#43B2BA", "#C73366", "#B8902A"],
+                    atmosphereOpacities: [0.08, 0.035, 0.40],
                     texture: .screenprintRegistration
                 ),
                 surfaceInkHex: "#053842", onChromeInkHex: "#FFF7E9",
@@ -723,11 +888,100 @@ public enum ChooserColorTheme: String, CaseIterable, Codable, Identifiable, Send
                 detailAccentHex: "#C73366", secondaryDetailHex: "#43B2BA",
                 participantHexValues: ["#08747C", "#43B2BA", "#053842", "#C73366", "#D28D00"],
                 pieceFinish: .flatScreenprint, pinballMaterial: .saffronScreenprint,
-                ballHex: "#D28D00", ballEdgeHex: "#815700",
+                ballHex: "#D28D00", ballEdgeHex: "#7A5100",
                 ballTailHex: "#D28D00", ballImpactHex: "#C73366",
-                dividerHex: "#053842", dividerSecondaryHex: "#FFF7E9",
+                dividerHex: "#B8902A", dividerSecondaryHex: "#053842",
+                dividerStyle: .goldInlay,
                 textureSeed: 0x4C45414445525331, textureOpacity: 0.024,
-                separatorOpacity: 0.30, dividerOpacity: 0.32
+                separatorOpacity: 0.30, dividerOpacity: 0.60
+            )
+        case .resArcana:
+            // A candlelit grimoire: oxblood leather, blind tooling, wax seals,
+            // a garnet bead. Deliberately no gold.
+            ChooserVisualTheme(
+                appearance: .dark,
+                surfaceRecipe: BoardSurfaceRecipe(
+                    composition: .tooledGrimoire,
+                    stops: [
+                        BoardSurfaceStop(hex: "#4E0E15", location: 0),
+                        BoardSurfaceStop(hex: "#2A080C", location: 0.38),
+                        BoardSurfaceStop(hex: "#110406", location: 0.78),
+                        BoardSurfaceStop(hex: "#070203", location: 1)
+                    ],
+                    atmosphereHexValues: ["#9A1E16", "#E07A70", "#000000"],
+                    atmosphereOpacities: [0.30, 0.10, 0.40],
+                    texture: .leatherGrain
+                ),
+                surfaceInkHex: "#EADCC5", onChromeInkHex: "#EADCC5",
+                chromeHex: "#170A0C", actionAccentHex: "#D9482A",
+                detailAccentHex: "#CDB79A", secondaryDetailHex: "#A3121F",
+                participantHexValues: ["#A3121F", "#E4D6BE", "#2E2024", "#D9482A", "#8A7D7A"],
+                pieceFinish: .waxSeal, pinballMaterial: .garnetBead,
+                ballHex: "#C21A2A", ballEdgeHex: "#4A0610",
+                ballTailHex: "#E0442C", ballImpactHex: "#E4D6BE",
+                dividerHex: "#CDB79A", dividerSecondaryHex: "#050102",
+                dividerStyle: .stitchedSeam,
+                // Every piece here is red, so Clear is bone to stay distinct.
+                destructiveHex: "#E4D6BE",
+                textureSeed: 0x5245534152434E41, textureOpacity: 0.040,
+                separatorOpacity: 0.36, dividerOpacity: 0.55
+            )
+        case .everdellEmerland:
+            // A sunlit jungle valley: dark canopy edges, misty light, a
+            // turquoise river, painted wood pieces and a cut emerald.
+            ChooserVisualTheme(
+                appearance: .light,
+                surfaceRecipe: BoardSurfaceRecipe(
+                    composition: .canopyRiverValley,
+                    stops: [
+                        BoardSurfaceStop(hex: "#E4F5DC", location: 0),
+                        BoardSurfaceStop(hex: "#A9DDB2", location: 0.32),
+                        BoardSurfaceStop(hex: "#4A9A6B", location: 0.66),
+                        BoardSurfaceStop(hex: "#143F34", location: 1)
+                    ],
+                    atmosphereHexValues: ["#0B3A33", "#8FE0D6", "#FFFBE6", "#E063A6"],
+                    atmosphereOpacities: [0.40, 0.40, 0.34, 0.40],
+                    texture: .paintedCanopy
+                ),
+                surfaceInkHex: "#0E2A20", onChromeInkHex: "#F4F1DE",
+                chromeHex: "#0F4A40", actionAccentHex: "#DE5A9E",
+                detailAccentHex: "#0E97AA", secondaryDetailHex: "#F29B30",
+                participantHexValues: ["#DE5A9E", "#F29B30", "#0E97AA", "#7E55BF", "#8A5A38"],
+                pieceFinish: .paintedWood, pinballMaterial: .cutEmerald,
+                ballHex: "#138A52", ballEdgeHex: "#033A22",
+                ballTailHex: "#BFF5D8", ballImpactHex: "#F29B30",
+                dividerHex: "#C7A06A", dividerSecondaryHex: "#3F2A14",
+                dividerStyle: .rope,
+                textureSeed: 0x454D45524C414E44, textureOpacity: 0.034,
+                separatorOpacity: 0.32, dividerOpacity: 0.60
+            )
+        case .sagrada:
+            // A cathedral window at dusk: dim leaded shards, a rose window,
+            // a stone frame, lit glass pieces and a clear glass bead.
+            ChooserVisualTheme(
+                appearance: .dark,
+                surfaceRecipe: BoardSurfaceRecipe(
+                    composition: .roseWindow,
+                    stops: [
+                        BoardSurfaceStop(hex: "#22305E", location: 0),
+                        BoardSurfaceStop(hex: "#1A1638", location: 0.55),
+                        BoardSurfaceStop(hex: "#0D080A", location: 1)
+                    ],
+                    atmosphereHexValues: ["#FFE7A8", "#FFF4D6"],
+                    atmosphereOpacities: [0.26, 0.22],
+                    texture: .cathedralGlass
+                ),
+                surfaceInkHex: "#F2EFE6", onChromeInkHex: "#F2EFE6",
+                chromeHex: "#3A3D3B", actionAccentHex: "#F5C518",
+                detailAccentHex: "#A6A296", secondaryDetailHex: "#1C6FD0",
+                participantHexValues: ["#F5C518", "#E0262E", "#1C6FD0", "#23A04A", "#9A2DB5"],
+                pieceFinish: .leadedGlass, pinballMaterial: .clearGlassBead,
+                ballHex: "#CFE3F0", ballEdgeHex: "#6F8CA6",
+                ballTailHex: "#FFFFFF", ballImpactHex: "#F5C518",
+                dividerHex: "#A6A296", dividerSecondaryHex: "#0D080A",
+                dividerStyle: .stoneMullion,
+                textureSeed: 0x53414752414441, textureOpacity: 0.032,
+                separatorOpacity: 0.36, dividerOpacity: 0.60
             )
         }
     }

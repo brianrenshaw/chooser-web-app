@@ -385,3 +385,176 @@ final class ChooserAppModelWhatsNewTests: XCTestCase {
         XCTAssertTrue(OnboardingMoment.allIncludingCurrentWhatsNew.contains(currentWhatsNew))
     }
 }
+
+/// The one-time three-finger shuffle hint, earned by finishing a few choices.
+@MainActor
+final class ThemeShuffleHintTests: XCTestCase {
+    private let threshold = OnboardingMoment.themeShuffleHintChoiceThreshold
+
+    private func makeTapInModel(
+        seen: Set<OnboardingMoment> = Set(OnboardingMoment.allIncludingCurrentWhatsNew),
+        completedChoices: Int = 0
+    ) -> (ChooserAppModel, MemoryOnboardingProgressStore, ManualChooserScheduler) {
+        let scheduler = ManualChooserScheduler()
+        let store = MemoryOnboardingProgressStore(storedMoments: seen)
+        store.storedCompletedChoiceCount = completedChoices
+        let model = ChooserAppModel(
+            modeStore: MemoryLaunchDefaultModeStore(storedMode: .tapIn),
+            colorThemeStore: MemoryChooserColorThemeStore(storedTheme: .wingspanOriginal),
+            onboardingStore: store,
+            tapInCore: TapInChooserCore(scheduler: scheduler),
+            colorThemeRandomIndexGenerator: FixedRandomIndexGenerator(index: 0),
+            feedback: NativeNoopFeedbackCoordinator()
+        )
+        // Tests drive presentation directly; the delayed task is covered once.
+        model.themeShuffleHintDelay = .seconds(60)
+        XCTAssertTrue(model.addTapInEntryForAccessibility())
+        XCTAssertTrue(model.addTapInEntryForAccessibility())
+        return (model, store, scheduler)
+    }
+
+    /// One finished Tap In choice. The first pick comes from collecting; every
+    /// later one is a "Pick again" from the result.
+    private func finishChoice(_ model: ChooserAppModel, _ scheduler: ManualChooserScheduler) {
+        if case .revealed = model.tapInSnapshot.phase {
+            model.pickTapInAgain()
+        } else {
+            model.pickTapIn()
+        }
+        scheduler.advance(by: 1)
+        guard case .revealed = model.tapInSnapshot.phase else {
+            return XCTFail("expected a result")
+        }
+    }
+
+    func testTheHintWaitsForTheFifthFinishedChoice() {
+        let (model, store, scheduler) = makeTapInModel()
+
+        for _ in 1..<threshold {
+            finishChoice(model, scheduler)
+            model.presentThemeShuffleHintIfDue()
+            XCTAssertNil(model.presentedOnboarding)
+        }
+        finishChoice(model, scheduler)
+        model.presentThemeShuffleHintIfDue()
+
+        XCTAssertEqual(model.presentedOnboarding, .themeShuffleHint)
+        XCTAssertTrue(model.isThemeShuffleHintPresented)
+        XCTAssertEqual(store.savedCompletedChoiceCounts, Array(1...threshold))
+    }
+
+    func testTheHintPresentsItselfAfterTheWinnerLands() async throws {
+        let (model, _, scheduler) = makeTapInModel(completedChoices: threshold - 1)
+        model.themeShuffleHintDelay = .milliseconds(20)
+
+        finishChoice(model, scheduler)
+        XCTAssertNil(model.presentedOnboarding, "never on the same frame as the winner")
+        try await Task.sleep(for: .milliseconds(200))
+
+        XCTAssertEqual(model.presentedOnboarding, .themeShuffleHint)
+    }
+
+    func testTheHintNeverCoversALiveDraw() {
+        let (model, _, _) = makeTapInModel(completedChoices: threshold)
+        model.pickTapIn()
+        XCTAssertTrue(model.isCriticalInteractionActive)
+
+        model.presentThemeShuffleHintIfDue()
+
+        XCTAssertNil(model.presentedOnboarding)
+    }
+
+    func testTheHintWaitsBehindAnUnseenModeCard() {
+        let (model, _, scheduler) = makeTapInModel(
+            seen: [.welcome, .whatsNew(release: OnboardingMoment.currentWhatsNewRelease)],
+            completedChoices: threshold - 1
+        )
+        model.startOnboardingIfNeeded()
+        XCTAssertEqual(model.presentedOnboarding, .modeCard(.tapIn))
+
+        // The card is still up (accessibility entries do not dismiss it here),
+        // so a finished choice must not replace it.
+        model.pickTapIn()
+        scheduler.advance(by: 1)
+        model.presentThemeShuffleHintIfDue()
+
+        XCTAssertNotEqual(model.presentedOnboarding, .themeShuffleHint)
+    }
+
+    func testTryingTheShuffleRetiresTheHintAndChangesTheWorld() {
+        let (model, store, scheduler) = makeTapInModel(completedChoices: threshold - 1)
+        finishChoice(model, scheduler)
+        model.presentThemeShuffleHintIfDue()
+        XCTAssertEqual(model.presentedOnboarding, .themeShuffleHint)
+
+        XCTAssertTrue(model.randomizeColorTheme())
+
+        XCTAssertNil(model.presentedOnboarding)
+        XCTAssertNotEqual(model.colorTheme, .wingspanOriginal)
+        XCTAssertTrue(store.storedMoments.contains(.themeShuffleHint))
+        XCTAssertEqual(model.toastMessage, model.colorTheme.name)
+    }
+
+    func testTouchingTheBoardRetiresTheHint() {
+        let (model, store, scheduler) = makeTapInModel(completedChoices: threshold - 1)
+        finishChoice(model, scheduler)
+        model.presentThemeShuffleHintIfDue()
+
+        model.noteModeInteraction()
+
+        XCTAssertNil(model.presentedOnboarding)
+        XCTAssertTrue(store.storedMoments.contains(.themeShuffleHint))
+    }
+
+    func testOnceSeenTheHintNeverReturnsAndCountingStops() {
+        var seen = Set(OnboardingMoment.allIncludingCurrentWhatsNew)
+        seen.insert(.themeShuffleHint)
+        let (model, store, scheduler) = makeTapInModel(seen: seen, completedChoices: 7)
+
+        for _ in 0..<3 {
+            finishChoice(model, scheduler)
+            model.presentThemeShuffleHintIfDue()
+        }
+
+        XCTAssertNil(model.presentedOnboarding)
+        XCTAssertTrue(store.savedCompletedChoiceCounts.isEmpty, "no writes after the hint is seen")
+    }
+
+    func testShowWelcomeAgainDoesNotRestoreTheHint() {
+        XCTAssertFalse(OnboardingMoment.all.contains(.themeShuffleHint))
+        XCTAssertFalse(OnboardingMoment.allIncludingCurrentWhatsNew.contains(.themeShuffleHint))
+    }
+
+    func testChangingModeWhileTheHintIsUpRetiresIt() {
+        let (model, store, scheduler) = makeTapInModel(completedChoices: threshold - 1)
+        finishChoice(model, scheduler)
+        model.presentThemeShuffleHintIfDue()
+
+        model.requestModeChange(to: .pinball)
+
+        XCTAssertNotEqual(model.presentedOnboarding, .themeShuffleHint)
+        XCTAssertTrue(store.storedMoments.contains(.themeShuffleHint))
+    }
+
+    func testPinballReduceMotionCountsEachChoiceOnce() async throws {
+        let store = MemoryOnboardingProgressStore(
+            storedMoments: Set(OnboardingMoment.allIncludingCurrentWhatsNew)
+        )
+        let model = ChooserAppModel(
+            modeStore: MemoryLaunchDefaultModeStore(storedMode: .pinball),
+            onboardingStore: store,
+            feedback: NativeNoopFeedbackCoordinator()
+        )
+        model.themeShuffleHintDelay = .seconds(60)
+        model.updatePinballPlayfield(size: CGSize(width: 390, height: 700))
+        model.configureAccessiblePinballSeats(count: 4)
+
+        model.startPinball(reduceMotion: true)
+        try await Task.sleep(for: .milliseconds(900))
+        guard case .revealed = model.pinballPhase else {
+            return XCTFail("expected a Pinball result")
+        }
+
+        XCTAssertEqual(store.storedCompletedChoiceCount, 1)
+    }
+}

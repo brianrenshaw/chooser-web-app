@@ -1,5 +1,23 @@
 # Who's First? — App Store Metadata
 
+## Version 1.2 — submitted September 7, 2026
+
+Version **1.2 (20)** is **WAITING_FOR_REVIEW**. Public release notes are exactly:
+
+> Improved timing and haptic feedback
+
+- Version ID: `21c2ef09-dd06-46e4-bfba-98754128fd88`
+- Build/delivery ID: `516185ae-c77b-4fba-a5ac-f3c46eb5f243` — `VALID`, iOS 26+, iPhone and iPad, no non-exempt encryption
+- Review submission: `99729250-1463-40c8-8e83-ba09db8f9b1d` — submitted `2026-09-07T11:08:06.11Z`
+- Release setting: `AFTER_APPROVAL`
+- Localization: `239fa77f-1ef9-46d5-819c-1f382cfce048` (`en-US`)
+- The description, keywords, URLs, and six complete screenshots for each device family were preserved from 1.1. App Review notes identify build 20/version 1.2 and the revised Chooser timing.
+- Release archive, strict/deep signature verification, distribution export, Apple validation, upload, and processing passed. Gameplay regression, UI, and final haptic checks passed before archiving; the owner preferred the installed 0.65-second winner finish.
+- Archive: `ios/App/build/app-store/WhosFirst-1.2-build20.xcarchive`; package: `ios/App/build/app-store/export-build20/App.ipa`. Validation and submission evidence: `/tmp/chooser-release12/`.
+
+Version 1.1 remains live while Apple reviews 1.2.
+
+
 This file records the English (U.S.) metadata and release state submitted for version 1.0. The Build 18 description, promotional text, review notes, contact, and screenshots below are applied in App Store Connect.
 
 ## Product identity

@@ -1,0 +1,1 @@
+Improved timing and haptic feedback

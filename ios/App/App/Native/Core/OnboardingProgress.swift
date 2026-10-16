@@ -13,6 +13,9 @@ public enum OnboardingMoment: Hashable, Identifiable, Sendable {
     /// already know the app. Carries the release it belongs to, so a later one
     /// is a different moment and shows again.
     case whatsNew(release: String)
+    /// The one-time hint that a three-finger tap shuffles the visual world,
+    /// shown once the person has completed a few choices and knows the app.
+    case themeShuffleHint
 
     public var id: String { persistenceToken }
 
@@ -23,12 +26,17 @@ public enum OnboardingMoment: Hashable, Identifiable, Sendable {
         case .welcome: "welcome"
         case .modeCard(let mode): "mode.\(mode.rawValue)"
         case .whatsNew(let release): "whatsNew.\(release)"
+        case .themeShuffleHint: "hint.themeShuffle"
         }
     }
 
     public init?(persistenceToken: String) {
         if persistenceToken == "welcome" {
             self = .welcome
+            return
+        }
+        if persistenceToken == "hint.themeShuffle" {
+            self = .themeShuffleHint
             return
         }
         let whatsNewPrefix = "whatsNew."
@@ -64,17 +72,26 @@ public enum OnboardingMoment: Hashable, Identifiable, Sendable {
     /// shown nothing at all.
     public static let allIncludingCurrentWhatsNew: [OnboardingMoment] =
         all + [.whatsNew(release: currentWhatsNewRelease)]
+
+    /// How many completed choices earn the three-finger shuffle hint. Late
+    /// enough that the person knows the app, early enough to still be useful.
+    /// Like `whatsNew`, the hint is not part of `all`: it is a tip for someone
+    /// already using the app, not part of the introduction.
+    public static let themeShuffleHintChoiceThreshold = 5
 }
 
 /// Which parts of the first-run introduction a person has already seen.
 ///
-/// This is the third and last persisted preference in the app, alongside the
-/// launch default mode and the selected visual world. It holds no personal
-/// data: only which introduction surfaces have been retired.
+/// Persisted alongside the launch default mode and the selected visual world.
+/// It holds no personal data: only which introduction surfaces have been
+/// retired, and a count of completed choices that stops being written once the
+/// three-finger shuffle hint has been shown.
 @MainActor
 public protocol OnboardingProgressPersisting: AnyObject {
     func loadSeenMoments() -> Set<OnboardingMoment>
     func saveSeenMoments(_ moments: Set<OnboardingMoment>)
+    func loadCompletedChoiceCount() -> Int
+    func saveCompletedChoiceCount(_ count: Int)
 }
 
 @MainActor
@@ -88,6 +105,7 @@ public final class UserDefaultsOnboardingProgressStore: OnboardingProgressPersis
     private let defaults: UserDefaults
     private let key: String
     private let versionKey: String
+    private let completedChoicesKey: String
 
     public init(
         defaults: UserDefaults = .standard,
@@ -97,6 +115,7 @@ public final class UserDefaultsOnboardingProgressStore: OnboardingProgressPersis
         self.defaults = defaults
         self.key = key
         self.versionKey = versionKey ?? "\(key).version"
+        self.completedChoicesKey = "\(key).completed-choices"
     }
 
     /// Deliberately a **pure read** — it must never write.
@@ -120,5 +139,14 @@ public final class UserDefaultsOnboardingProgressStore: OnboardingProgressPersis
         // deterministic regardless of set iteration order.
         defaults.set(moments.map(\.persistenceToken).sorted(), forKey: key)
         defaults.set(Self.currentOnboardingVersion, forKey: versionKey)
+    }
+
+    /// A pure read, like `loadSeenMoments()`. A missing key reads as zero.
+    public func loadCompletedChoiceCount() -> Int {
+        max(0, defaults.integer(forKey: completedChoicesKey))
+    }
+
+    public func saveCompletedChoiceCount(_ count: Int) {
+        defaults.set(max(0, count), forKey: completedChoicesKey)
     }
 }

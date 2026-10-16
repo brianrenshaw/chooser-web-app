@@ -164,6 +164,13 @@ public final class ChooserAppModel {
     /// any second mutation site would silently desync it from `UserDefaults`.
     @ObservationIgnored private var seenOnboardingMoments: Set<OnboardingMoment>
     @ObservationIgnored private var isWelcomeReplayRequested = false
+    /// Mirror of the store's completed-choice count. Stops changing, and stops
+    /// being written, once the three-finger shuffle hint has been seen.
+    @ObservationIgnored private var completedChoiceCount: Int
+    @ObservationIgnored private var themeShuffleHintTask: Task<Void, Never>?
+    /// Lets the winner land before the hint slides in. Internal so tests can
+    /// shorten it.
+    @ObservationIgnored var themeShuffleHintDelay: Duration = .seconds(1.1)
     @ObservationIgnored private var pinballTask: Task<Void, Never>?
     @ObservationIgnored private var pinballPendingCollisionFeedback: [Int: NativePinballCollisionFeedbackEvent] = [:]
     @ObservationIgnored private var pinballLayoutCache: (key: PinballLayoutCacheKey, layout: PinballSeatTokenLayout?)?
@@ -196,6 +203,7 @@ public final class ChooserAppModel {
         // A pure load with no presentation policy: `presentedOnboarding` stays
         // nil until a view explicitly asks via `startOnboardingIfNeeded()`.
         seenOnboardingMoments = onboardingStore.loadSeenMoments()
+        completedChoiceCount = onboardingStore.loadCompletedChoiceCount()
         mode = modeCore.currentMode
         launchDefaultMode = modeCore.launchDefaultMode
         colorTheme = colorThemeStore.loadColorTheme() ?? .wingspanOriginal
@@ -208,6 +216,7 @@ public final class ChooserAppModel {
     deinit {
         pinballTask?.cancel()
         toastTask?.cancel()
+        themeShuffleHintTask?.cancel()
     }
 
     public var selectedModeID: String { mode.rawValue }
@@ -399,7 +408,16 @@ public final class ChooserAppModel {
                 upperBound: candidates.count
             )
             guard candidates.indices.contains(index) else { return false }
-            selectColorTheme(candidates[index])
+            let theme = candidates[index]
+            // Trying the shortcut is the best possible dismissal of its hint.
+            if presentedOnboarding == .themeShuffleHint {
+                completeOnboarding()
+            }
+            selectColorTheme(theme)
+            // Settings tiles are already labelled; only a shuffle, which picks
+            // a world the person did not name, flashes the name. VoiceOver
+            // already hears it from `selectColorTheme`'s announcement.
+            showToast(theme.name, duration: Self.themeNameToastDuration)
             return true
         } catch {
             return false
@@ -500,6 +518,8 @@ public final class ChooserAppModel {
             markOnboardingMomentsSeen([.modeCard(cardMode)])
         case .whatsNew(let release):
             markOnboardingMomentsSeen([.whatsNew(release: release)])
+        case .themeShuffleHint:
+            markOnboardingMomentsSeen([.themeShuffleHint])
         }
         presentedOnboarding = nil
         feedback.play(.confirmation)
@@ -514,8 +534,61 @@ public final class ChooserAppModel {
     /// Dismisses a visible mode card as soon as the person touches the board.
     /// Someone who already knows what to do should not have to aim at a button.
     public func noteModeInteraction() {
-        guard case .modeCard = presentedOnboarding else { return }
-        completeOnboarding()
+        switch presentedOnboarding {
+        case .modeCard, .themeShuffleHint:
+            completeOnboarding()
+        case .welcome, .whatsNew, nil:
+            return
+        }
+    }
+
+    // MARK: - Three-finger shuffle hint
+
+    public var isThemeShuffleHintPresented: Bool {
+        presentedOnboarding == .themeShuffleHint
+    }
+
+    /// True while a finished choice is on screen in the current mode.
+    private var isShowingResult: Bool {
+        switch mode {
+        case .together:
+            if case .revealed = togetherSnapshot.phase { return true }
+        case .tapIn:
+            if case .revealed = tapInSnapshot.phase { return true }
+        case .pinball:
+            if case .revealed = pinballPhase { return true }
+        }
+        return false
+    }
+
+    /// Called once from every place a choice finishes. Counts toward the
+    /// shuffle hint, then stops counting and writing once it has been seen.
+    private func noteChoiceCompleted() {
+        guard !seenOnboardingMoments.contains(.themeShuffleHint) else { return }
+        completedChoiceCount += 1
+        onboardingStore.saveCompletedChoiceCount(completedChoiceCount)
+        guard completedChoiceCount >= OnboardingMoment.themeShuffleHintChoiceThreshold else { return }
+        themeShuffleHintTask?.cancel()
+        let delay = themeShuffleHintDelay
+        themeShuffleHintTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: delay)
+            guard !Task.isCancelled else { return }
+            self?.presentThemeShuffleHintIfDue()
+        }
+    }
+
+    /// Presents the hint only over a settled result, where a shuffle is safe
+    /// and the person can try it at once. If the moment has passed, the next
+    /// finished choice tries again.
+    func presentThemeShuffleHintIfDue() {
+        guard !seenOnboardingMoments.contains(.themeShuffleHint),
+              completedChoiceCount >= OnboardingMoment.themeShuffleHintChoiceThreshold,
+              presentedOnboarding == nil,
+              confirmation == nil,
+              !isCriticalInteractionActive,
+              isShowingResult,
+              canRandomizeColorTheme else { return }
+        presentedOnboarding = .themeShuffleHint
     }
 
     /// Arms a replay from Settings. Clears no progress: replaying shows the
@@ -985,6 +1058,7 @@ public final class ChooserAppModel {
                       case .revealing(let activeRun, _, _) = self.pinballPhase,
                       activeRun.id == run.id else { return }
                 self.pinballPhase = .revealed(run)
+                self.noteChoiceCompleted()
             }
         } else {
             pinballPhase = .running(run)
@@ -1063,12 +1137,14 @@ public final class ChooserAppModel {
 
     public func playPinballAgain(reduceMotion: Bool) {
         guard case .revealed = pinballPhase else { return }
+        feedback.cancelSequence()
         pinballPhase = .collecting
         announce("Same seats ready. Flick when ready.")
     }
 
     public func dismissPinballResult() {
         guard case .revealed = pinballPhase else { return }
+        feedback.cancelSequence()
         pinballPhase = .collecting
         announce("Same seats ready. Flick when ready.")
     }
@@ -1225,6 +1301,12 @@ public final class ChooserAppModel {
         modeCore.select(target, persistAsLaunchDefault: false)
         mode = target
         feedback.play(.modeChanged)
+        // Changing mode clears the result the hint was pointing at. Count the
+        // hint as seen so the new mode's own card is free to appear.
+        if presentedOnboarding == .themeShuffleHint {
+            markOnboardingMomentsSeen([.themeShuffleHint])
+            presentedOnboarding = nil
+        }
         // The single mode-change authority for the menu, App Shortcuts, and
         // deep links alike, so this one hook covers every route into a mode.
         presentOnboardingIfNeeded()
@@ -1276,6 +1358,7 @@ public final class ChooserAppModel {
             countdownStartedAt = nil
             feedback.cancelSequence()
             feedback.play(.chooserWinner)
+            noteChoiceCompleted()
         case .settling:
             countdownStartedAt = nil
             // A late finger can move an active countdown back into the silent
@@ -1322,6 +1405,7 @@ public final class ChooserAppModel {
             countdownStartedAt = nil
             feedback.cancelSequence()
             feedback.play(.choiceWinner)
+            noteChoiceCompleted()
         case .collecting:
             countdownStartedAt = nil
             feedback.cancelSequence()
@@ -1385,6 +1469,7 @@ public final class ChooserAppModel {
         pinballPhase = .revealed(run)
         pinballFinishEnqueuedRunID = nil
         pinballTask = nil
+        noteChoiceCompleted()
     }
 
     private func cancelPinballRun(announceCancellation: Bool) {
@@ -1401,6 +1486,7 @@ public final class ChooserAppModel {
     }
 
     private func clearPinballGroup() {
+        feedback.cancelSequence()
         pinballTask?.cancel()
         pinballTask = nil
         pinballPendingCollisionFeedback.removeAll()
@@ -1411,11 +1497,17 @@ public final class ChooserAppModel {
         pinballPhase = .collecting
     }
 
-    private func showToast(_ message: String) {
+    /// Shown after a successful shuffle. Long enough to read a world's name,
+    /// short enough that it is gone before the next round starts.
+    static let themeNameToastDuration: Duration = .seconds(1.2)
+
+    /// A new toast replaces any visible one and restarts its timer, so rapid
+    /// shuffles only ever show the latest world.
+    private func showToast(_ message: String, duration: Duration = .seconds(2.2)) {
         toastTask?.cancel()
         toastMessage = message
         toastTask = Task { @MainActor [weak self] in
-            try? await Task.sleep(for: .seconds(2.2))
+            try? await Task.sleep(for: duration)
             guard !Task.isCancelled else { return }
             self?.toastMessage = nil
         }

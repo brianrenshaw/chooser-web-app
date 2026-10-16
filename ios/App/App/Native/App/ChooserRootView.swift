@@ -56,6 +56,14 @@ public struct ChooserRootView: View {
                         )
                         .transition(reduceMotion ? .identity : .move(edge: .top).combined(with: .opacity))
                     }
+
+                    if model.isThemeShuffleHintPresented {
+                        NativeThemeShuffleHintCard(
+                            colorTheme: model.colorTheme,
+                            onDismiss: model.completeOnboarding
+                        )
+                        .transition(reduceMotion ? .identity : .move(edge: .top).combined(with: .opacity))
+                    }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                 .padding(.top, 6)

@@ -5,17 +5,17 @@ import XCTest
 final class ChoiceAnticipationTimelineTests: XCTestCase {
     private let accuracy = 0.000_001
 
-    func testChooserTimelineProvidesALongerEscalatingDecisionRitual() throws {
+    func testChooserTimelineProvidesAFastEscalatingDecisionRitual() throws {
         let timeline = ChoiceAnticipationTimeline.chooser
 
-        XCTAssertEqual(timeline.duration, 2.75, accuracy: accuracy)
+        XCTAssertEqual(timeline.duration, 1.65, accuracy: accuracy)
         XCTAssertEqual(timeline.winnerRevealDuration, 0.82, accuracy: accuracy)
         XCTAssertEqual(timeline.loserFadeDuration, 0.46, accuracy: accuracy)
         XCTAssertEqual(timeline.winnerCompressionFraction, 0.10, accuracy: accuracy)
         XCTAssertEqual(timeline.winnerContactTime, 0.082, accuracy: accuracy)
-        XCTAssertEqual(timeline.beats.map(\.time), [0.24, 0.78, 1.28, 1.72, 2.10, 2.43])
-        XCTAssertEqual(timeline.beats.map(\.intensity), [0.26, 0.34, 0.43, 0.53, 0.63, 0.74])
-        XCTAssertEqual(timeline.beats.map(\.sharpness), [0.16, 0.18, 0.20, 0.22, 0.24, 0.27])
+        XCTAssertEqual(timeline.beats.map(\.time), [0.10, 0.44, 0.74, 1.00, 1.22, 1.41])
+        XCTAssertEqual(timeline.beats.map(\.intensity), [0.75, 0.80, 0.85, 0.90, 0.94, 0.98])
+        XCTAssertEqual(timeline.beats.map(\.sharpness), [0.60, 0.66, 0.72, 0.78, 0.84, 0.90])
         XCTAssertEqual(timeline.beats.map(\.compressionScale), [0.994, 0.991, 0.987, 0.982, 0.976, 0.968])
         XCTAssertEqual(timeline.beats.map(\.reboundScale), [1.002, 1.003, 1.004, 1.006, 1.008, 1.011])
         XCTAssertEqual(timeline.beats.map(\.translation), [1.4, 2.1, 3.0, 4.0, 5.0, 6.0])
@@ -24,7 +24,7 @@ final class ChoiceAnticipationTimelineTests: XCTestCase {
         XCTAssertEqual(timeline.maximumTranslation, 6.0, accuracy: accuracy)
         XCTAssertEqual(
             timeline.duration - (timeline.beats.last?.time ?? 0),
-            0.32,
+            0.24,
             accuracy: accuracy,
             "The tactile ritual needs a quiet headroom beat before the physical landing"
         )
@@ -36,33 +36,28 @@ final class ChoiceAnticipationTimelineTests: XCTestCase {
         XCTAssertLessThan(decision.compressionScale, penultimate.compressionScale)
     }
 
-    func testWinnerLandingHasAuditedSwellAndLongDecay() {
+    func testWinnerLandingHasFirmAttackAndSustainedWinnerRumble() {
         let timeline = ChoiceAnticipationTimeline.chooser
         let winner = timeline.winnerHaptic
 
         XCTAssertEqual(winner.attackTime, 0, accuracy: accuracy)
         XCTAssertEqual(winner.attackIntensity, 1.0, accuracy: Float(accuracy))
-        XCTAssertEqual(winner.attackSharpness, 0.20, accuracy: Float(accuracy))
+        XCTAssertEqual(winner.attackSharpness, 1.0, accuracy: Float(accuracy))
         XCTAssertEqual(winner.bodyStartTime, 0.012, accuracy: accuracy)
-        XCTAssertEqual(winner.bodyDuration, 0.78, accuracy: accuracy)
-        XCTAssertEqual(winner.bodySharpness, 0.07, accuracy: Float(accuracy))
+        XCTAssertEqual(winner.bodyDuration, 0.65, accuracy: accuracy)
+        XCTAssertEqual(winner.bodySharpness, 0.60, accuracy: Float(accuracy))
         XCTAssertEqual(
             winner.intensityCurve,
             [
-                .init(relativeTime: 0, intensity: 0.82),
-                .init(relativeTime: 0.060, intensity: 0.96),
-                .init(relativeTime: 0.180, intensity: 0.78),
-                .init(relativeTime: 0.340, intensity: 0.56),
-                .init(relativeTime: 0.520, intensity: 0.36),
-                .init(relativeTime: 0.680, intensity: 0.18),
-                .init(relativeTime: 0.780, intensity: 0.05)
+                .init(relativeTime: 0, intensity: 1.0),
+                .init(relativeTime: 0.350, intensity: 1.0),
+                .init(relativeTime: 0.480, intensity: 0.90),
+                .init(relativeTime: 0.650, intensity: 0.05)
             ]
         )
-        XCTAssertGreaterThan(winner.intensityCurve[1].intensity, winner.intensityCurve[0].intensity)
-        XCTAssertTrue(zip(
-            winner.intensityCurve.dropFirst(),
-            winner.intensityCurve.dropFirst(2)
-        ).allSatisfy { $0.intensity > $1.intensity })
+        XCTAssertTrue(winner.intensityCurve.dropLast().allSatisfy { $0.intensity >= 0.80 })
+        XCTAssertEqual(winner.intensityCurve.last?.relativeTime, winner.bodyDuration)
+        XCTAssertLessThan(winner.bodyDuration, timeline.winnerRevealDuration)
         XCTAssertEqual(
             timeline.winnerContactTime,
             timeline.winnerRevealDuration * ChooserWinnerLandingMetrics.compressionFraction,

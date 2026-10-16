@@ -40,6 +40,12 @@ public struct BoardFinishTextureView: View {
                 drawSparseSpeckle(context: &context, size: size, generator: &generator, count: 46)
             case .flatScreenprint:
                 drawScreenprintDots(context: &context, size: size, generator: &generator)
+            case .waxSeal:
+                drawPebbledGrain(context: &context, size: size, generator: &generator)
+            case .paintedWood:
+                drawWoodGrain(context: &context, size: size, generator: &generator)
+            case .leadedGlass:
+                drawGlassStreaks(context: &context, size: size, generator: &generator)
             }
         }
         .foregroundStyle(ink)
@@ -230,6 +236,100 @@ public struct BoardFinishTextureView: View {
     }
 }
 
+extension BoardFinishTextureView {
+    /// Leather and pressed wax share a pebbled surface: small irregular cells
+    /// whose count follows area, so a full board and a chit read alike.
+    fileprivate func drawPebbledGrain(
+        context: inout GraphicsContext,
+        size: CGSize,
+        generator: inout BoardTextureGenerator
+    ) {
+        // Fine cells, like the pores of leather or the skin on cooled wax.
+        let cell = max(1.8, min(size.width, size.height) / 120)
+        let count = min(2_600, Int((size.width * size.height) / (cell * cell) * 0.32))
+        for _ in 0..<count {
+            let width = cell * generator.range(0.6...1.4)
+            let height = width * generator.range(0.55...0.95)
+            let rect = CGRect(
+                x: generator.range(-2...max(-1, size.width)),
+                y: generator.range(-2...max(-1, size.height)),
+                width: width,
+                height: height
+            )
+            context.stroke(
+                Path(ellipseIn: rect),
+                with: .color(ink.opacity(Double(generator.range(0.30...0.70)))),
+                lineWidth: 0.6
+            )
+        }
+    }
+
+    /// Long, gently wandering grain lines: wood under paint, or brushwork.
+    fileprivate func drawWoodGrain(
+        context: inout GraphicsContext,
+        size: CGSize,
+        generator: inout BoardTextureGenerator
+    ) {
+        let spacing = max(3, size.height / 34)
+        var y = -spacing
+        while y < size.height + spacing {
+            var path = Path()
+            let start = CGPoint(x: -4, y: y + generator.range(-1.2...1.2))
+            path.move(to: start)
+            let wave = generator.range(1.0...3.4)
+            path.addCurve(
+                to: CGPoint(x: size.width + 4, y: y + generator.range(-2...2)),
+                control1: CGPoint(x: size.width * 0.33, y: y - wave),
+                control2: CGPoint(x: size.width * 0.66, y: y + wave)
+            )
+            context.stroke(
+                path,
+                with: .color(ink.opacity(Double(generator.range(0.34...0.74)))),
+                lineWidth: generator.range(0.5...1.1)
+            )
+            y += spacing * generator.range(0.7...1.4)
+        }
+    }
+
+    /// Cathedral glass: diagonal streaks of uneven thickness plus a few seeds.
+    fileprivate func drawGlassStreaks(
+        context: inout GraphicsContext,
+        size: CGSize,
+        generator: inout BoardTextureGenerator
+    ) {
+        let spacing = max(4, min(size.width, size.height) / 14)
+        var x = -size.height * 0.4
+        while x < size.width + spacing {
+            var path = Path()
+            path.move(to: CGPoint(x: x, y: -2))
+            path.addQuadCurve(
+                to: CGPoint(x: x + size.height * 0.42, y: size.height + 2),
+                control: CGPoint(x: x + size.height * 0.2 + generator.range(-6...6), y: size.height * 0.5)
+            )
+            context.stroke(
+                path,
+                with: .color(ink.opacity(Double(generator.range(0.28...0.62)))),
+                lineWidth: generator.range(0.5...1.6)
+            )
+            x += spacing * generator.range(0.6...1.5)
+        }
+        let seeds = min(220, Int(size.width * size.height / 1_800))
+        for _ in 0..<seeds {
+            let diameter = generator.range(0.8...2.2)
+            context.stroke(
+                Path(ellipseIn: CGRect(
+                    x: generator.range(0...max(0, size.width - diameter)),
+                    y: generator.range(0...max(0, size.height - diameter)),
+                    width: diameter,
+                    height: diameter
+                )),
+                with: .color(ink.opacity(Double(generator.range(0.40...0.80)))),
+                lineWidth: 0.5
+            )
+        }
+    }
+}
+
 /// Centralizes the visual response of custom board materials to system
 /// accessibility appearance settings. Default values are deliberately neutral
 /// so the authored Build 14 theme recipes remain pixel-for-pixel unchanged
@@ -317,6 +417,7 @@ public struct BoardSurfaceView: View {
                     seed: visualTheme.textureSeed,
                     ink: visualTheme.primaryInkColor,
                     opacity: visualTheme.textureOpacity
+                        * visualTheme.surfaceRecipe.texture.surfaceStrength
                         * policy.surfaceTextureOpacityMultiplier
                 )
             }
@@ -342,22 +443,71 @@ public struct BoardSurfaceView: View {
         })
 
         switch visualTheme.surfaceRecipe.composition {
-        case .goldenForestClearing:
+        case .honeyAutumnTree:
+            RadialGradient(
+                gradient: gradient,
+                center: UnitPoint(x: 0.50, y: 0.40),
+                startRadius: 0,
+                endRadius: max(size.width, size.height) * 0.74
+            )
+        case .redLacquerField:
             RadialGradient(
                 gradient: gradient,
                 center: UnitPoint(x: 0.50, y: 0.46),
                 startRadius: 0,
                 endRadius: max(size.width, size.height) * 0.72
             )
-        case .parchmentMedallion, .warmFrescoMedallion:
-            LinearGradient(
+        case .rainforestClearing:
+            RadialGradient(
                 gradient: gradient,
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
+                center: UnitPoint(x: 0.50, y: 0.48),
+                startRadius: 0,
+                endRadius: max(size.width, size.height) * 0.70
             )
-        case .verticalWatercolorWash, .coralFeatherField, .brightLeafField,
-             .midnightRedEdge, .layeredScreenprint:
+        case .slateForge:
+            RadialGradient(
+                gradient: gradient,
+                center: UnitPoint(x: 0.50, y: 0.40),
+                startRadius: 0,
+                endRadius: max(size.width, size.height) * 0.75
+            )
+        case .amberPlumPainting:
+            RadialGradient(
+                gradient: gradient,
+                center: UnitPoint(x: 0.46, y: 0.38),
+                startRadius: 0,
+                endRadius: max(size.width, size.height) * 0.78
+            )
+        case .mediterraneanMap:
+            // The frame and coastlines are structure: they stay whole under
+            // Reduce Transparency.
+            ZStack {
+                LinearGradient(gradient: gradient, startPoint: .top, endPoint: .bottom)
+                MediterraneanMapStructureView(visualTheme: visualTheme)
+            }
+        case .verticalWatercolorWash, .layeredScreenprint:
             LinearGradient(gradient: gradient, startPoint: .top, endPoint: .bottom)
+        case .tooledGrimoire:
+            RadialGradient(
+                gradient: gradient,
+                center: UnitPoint(x: 0.50, y: 0.52),
+                startRadius: 0,
+                endRadius: max(size.width, size.height) * 0.70
+            )
+        case .canopyRiverValley:
+            RadialGradient(
+                gradient: gradient,
+                center: UnitPoint(x: 0.52, y: 0.44),
+                startRadius: 0,
+                endRadius: max(size.width, size.height) * 0.66
+            )
+        case .roseWindow:
+            // The window is structure, not atmosphere: it stays whole under
+            // Reduce Transparency.
+            ZStack {
+                LinearGradient(gradient: gradient, startPoint: .top, endPoint: .bottom)
+                RoseWindowStructureView(visualTheme: visualTheme)
+            }
         }
     }
 }
@@ -377,64 +527,40 @@ private struct BoardSurfaceAtmosphereView: View {
     private func compositionLayers(in size: CGSize) -> some View {
         switch visualTheme.surfaceRecipe.composition {
         case .verticalWatercolorWash:
-            ZStack {
-                softBloom(index: 0, center: UnitPoint(x: 0.24, y: 0.18), radius: max(size.width, size.height) * 0.52)
-                softBloom(index: 1, center: UnitPoint(x: 0.82, y: 0.22), radius: max(size.width, size.height) * 0.30)
-            }
-        case .coralFeatherField:
-            ZStack {
-                softBloom(index: 0, center: UnitPoint(x: 0.76, y: 0.25), radius: max(size.width, size.height) * 0.48)
-                softBloom(index: 1, center: UnitPoint(x: 0.18, y: 0.78), radius: max(size.width, size.height) * 0.34)
-            }
-        case .brightLeafField:
+            WetEdgeWashView(visualTheme: visualTheme)
+        case .redLacquerField:
+            PeacockLacquerView(visualTheme: visualTheme)
+        case .rainforestClearing:
             ZStack {
                 edgeVignette(index: 0, size: size, innerLocation: 0.46)
+                RainforestEdgeLeavesView(visualTheme: visualTheme)
+            }
+        case .slateForge:
+            SlateForgeGlowView(visualTheme: visualTheme)
+        case .mediterraneanMap:
+            // The map itself is structure in the base surface.
+            Color.clear
+        case .honeyAutumnTree:
+            FallingLeavesView(visualTheme: visualTheme)
+        case .amberPlumPainting:
+            AmberPlumPaintingView(visualTheme: visualTheme)
+        case .layeredScreenprint:
+            ZStack {
                 AbstractSurfaceMarks(
                     primary: atmosphereColor(at: 0),
                     secondary: atmosphereColor(at: 1),
                     primaryOpacity: atmosphereOpacity(at: 0),
                     secondaryOpacity: atmosphereOpacity(at: 1),
-                    style: .leaf
+                    style: .screenprint
                 )
+                GoldInlayBorderView(visualTheme: visualTheme)
             }
-        case .parchmentMedallion:
-            ZStack {
-                softBloom(index: 0, center: .center, radius: max(size.width, size.height) * 0.54)
-                softBloom(index: 1, center: UnitPoint(x: 0.60, y: 0.58), radius: max(size.width, size.height) * 0.38)
-            }
-        case .warmFrescoMedallion:
-            ZStack {
-                edgeVignette(index: 0, size: size, innerLocation: 0.48)
-                softBloom(index: 1, center: UnitPoint(x: 0.50, y: 0.46), radius: max(size.width, size.height) * 0.42)
-                softBloom(index: 2, center: UnitPoint(x: 0.50, y: 0.46), radius: max(size.width, size.height) * 0.26)
-            }
-        case .goldenForestClearing:
-            AbstractSurfaceMarks(
-                primary: atmosphereColor(at: 0),
-                secondary: atmosphereColor(at: 1),
-                primaryOpacity: atmosphereOpacity(at: 0),
-                secondaryOpacity: atmosphereOpacity(at: 1),
-                style: .riverPath
-            )
-        case .midnightRedEdge:
-            ZStack {
-                edgeVignette(index: 0, size: size, innerLocation: 0.42)
-                Rectangle()
-                    .strokeBorder(
-                        atmosphereColor(at: 0).opacity(atmosphereOpacity(at: 0) * 0.92),
-                        lineWidth: max(9, min(size.width, size.height) * 0.035)
-                    )
-                    .blur(radius: 5)
-                softBloom(index: 1, center: .center, radius: max(size.width, size.height) * 0.30)
-            }
-        case .layeredScreenprint:
-            AbstractSurfaceMarks(
-                primary: atmosphereColor(at: 0),
-                secondary: atmosphereColor(at: 1),
-                primaryOpacity: atmosphereOpacity(at: 0),
-                secondaryOpacity: atmosphereOpacity(at: 1),
-                style: .screenprint
-            )
+        case .tooledGrimoire:
+            GrimoireToolingView(visualTheme: visualTheme)
+        case .canopyRiverValley:
+            CanopyRiverValleyView(visualTheme: visualTheme)
+        case .roseWindow:
+            RoseWindowLightView(visualTheme: visualTheme)
         }
     }
 
@@ -482,7 +608,7 @@ private struct BoardSurfaceAtmosphereView: View {
 }
 
 private struct AbstractSurfaceMarks: View {
-    enum Style { case leaf, riverPath, screenprint }
+    enum Style { case screenprint }
 
     let primary: Color
     let secondary: Color
@@ -493,43 +619,6 @@ private struct AbstractSurfaceMarks: View {
     var body: some View {
         Canvas(opaque: false, colorMode: .linear, rendersAsynchronously: true) { context, size in
             switch style {
-            case .leaf:
-                for index in 0..<7 {
-                    let y = size.height * (0.10 + CGFloat(index) * 0.135)
-                    var path = Path()
-                    path.move(to: CGPoint(x: -size.width * 0.08, y: y))
-                    path.addCurve(
-                        to: CGPoint(x: size.width * 1.08, y: y - size.height * 0.045),
-                        control1: CGPoint(x: size.width * 0.25, y: y - size.height * 0.08),
-                        control2: CGPoint(x: size.width * 0.72, y: y + size.height * 0.07)
-                    )
-                    context.stroke(path, with: .color(primary.opacity(primaryOpacity * 0.34)), lineWidth: 1.2)
-                }
-                context.fill(
-                    Path(ellipseIn: CGRect(
-                        x: size.width * 0.70, y: size.height * 0.14,
-                        width: size.width * 0.18, height: size.width * 0.18
-                    )),
-                    with: .color(secondary.opacity(secondaryOpacity))
-                )
-            case .riverPath:
-                var path = Path()
-                path.move(to: CGPoint(x: -size.width * 0.06, y: size.height * 0.72))
-                path.addCurve(
-                    to: CGPoint(x: size.width * 1.06, y: size.height * 0.31),
-                    control1: CGPoint(x: size.width * 0.30, y: size.height * 0.52),
-                    control2: CGPoint(x: size.width * 0.64, y: size.height * 0.55)
-                )
-                context.stroke(path, with: .color(primary.opacity(primaryOpacity)), lineWidth: max(4, size.width * 0.018))
-
-                var river = Path()
-                river.move(to: CGPoint(x: size.width * 0.72, y: size.height * 1.05))
-                river.addCurve(
-                    to: CGPoint(x: size.width * 0.42, y: -size.height * 0.05),
-                    control1: CGPoint(x: size.width * 0.52, y: size.height * 0.70),
-                    control2: CGPoint(x: size.width * 0.70, y: size.height * 0.28)
-                )
-                context.stroke(river, with: .color(secondary.opacity(secondaryOpacity)), lineWidth: max(3, size.width * 0.012))
             case .screenprint:
                 for index in 0..<4 {
                     let inset = CGFloat(index) * size.width * 0.055
@@ -929,7 +1018,7 @@ public struct BoardRingView<Center: View>: View {
         let policy = accessibilityAppearancePolicy
         // Keylines thicken with the piece so a large ring keeps a decisive
         // edge instead of a hairline. Derived from one multiplier rather than
-        // by editing the eight authored per-finish tuples.
+        // by editing the authored per-finish tuples.
         let edgeScale = BoardPieceVisualMetrics.edgeWidthScale(for: diameter)
         let outerEdgeWidth = material.outerEdgeWidth * policy.edgeWidthMultiplier * edgeScale
         let innerEdgeWidth = material.innerEdgeWidth * policy.edgeWidthMultiplier * edgeScale
@@ -1005,6 +1094,13 @@ public struct BoardRingView<Center: View>: View {
                     )),
                     lineWidth: innerOcclusionWidth
                 )
+
+            BoardPieceFinishOverlay(
+                style: style,
+                diameter: diameter,
+                bandWidth: bandWidth,
+                policy: policy
+            )
         }
             .compositingGroup()
             .shadow(
@@ -1074,6 +1170,13 @@ public struct BoardRingView<Center: View>: View {
                     )),
                     lineWidth: outerEdgeWidth
                 )
+
+            BoardPieceFinishOverlay(
+                style: style,
+                diameter: diameter,
+                bandWidth: nil,
+                policy: policy
+            )
         }
             .compositingGroup()
             .shadow(
@@ -1337,6 +1440,30 @@ public struct PhysicalPinballBallView: View {
                     )
                     .offset(x: -diameter * 0.14, y: diameter * 0.135)
             }
+
+            ForEach(
+                Array(PinballBallOrnamentGeometry.layers(
+                    for: material.ornament,
+                    radius: diameter / 2,
+                    yUp: false
+                ).enumerated()),
+                id: \.offset
+            ) { _, layer in
+                let path = Path(layer.path).offsetBy(dx: diameter / 2, dy: diameter / 2)
+                ZStack {
+                    if layer.darkFillAlpha > 0 {
+                        path.fill(theme.pinballEdgeColor.opacity(colorOpacity(layer.darkFillAlpha)))
+                    } else {
+                        path.fill(Color.white.opacity(colorOpacity(
+                            layer.fillAlpha * policy.materialReliefOpacityMultiplier
+                        )))
+                    }
+                    path.stroke(
+                        Color.white.opacity(colorOpacity(layer.strokeAlpha * policy.materialReliefOpacityMultiplier)),
+                        style: StrokeStyle(lineWidth: layer.lineWidth, lineCap: .round)
+                    )
+                }
+            }
         }
         .frame(width: diameter, height: diameter)
         .accessibilityHidden(true)
@@ -1432,7 +1559,7 @@ public typealias NativeNeonVisualMetrics = BoardPieceVisualMetrics
 public typealias NativeNeonRingView = BoardRingView
 public typealias NativeNeonTokenView = NumberedChitView
 
-private struct BoardTextureGenerator {
+struct BoardTextureGenerator {
     private var state: UInt64
 
     init(seed: UInt64) { state = seed == 0 ? 0x9E3779B97F4A7C15 : seed }

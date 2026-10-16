@@ -16,6 +16,7 @@ final class ThemeShuffleTests: XCTestCase {
             let model = ChooserAppModel(
                 modeStore: MemoryLaunchDefaultModeStore(storedMode: .together),
                 colorThemeStore: store,
+                onboardingStore: MemoryOnboardingProgressStore(),
                 colorThemeRandomIndexGenerator: generator,
                 feedback: NativeNoopFeedbackCoordinator()
             )
@@ -36,6 +37,7 @@ final class ThemeShuffleTests: XCTestCase {
         let model = ChooserAppModel(
             modeStore: MemoryLaunchDefaultModeStore(storedMode: .tapIn),
             colorThemeStore: store,
+            onboardingStore: MemoryOnboardingProgressStore(),
             tapInCore: TapInChooserCore(
                 scheduler: scheduler,
                 randomIndexGenerator: FixedRandomIndexGenerator(index: 1)
@@ -58,7 +60,50 @@ final class ThemeShuffleTests: XCTestCase {
         XCTAssertEqual(model.tapInSnapshot.entries, entries)
         XCTAssertEqual(model.tapInSnapshot.winner, winner)
         XCTAssertEqual(store.savedThemes, [model.colorTheme])
+        // A shuffle names the world it landed on.
+        XCTAssertEqual(model.toastMessage, model.colorTheme.name)
+    }
+
+    // MARK: - Theme name after a shuffle
+
+    func testShuffleFlashesTheNewWorldsNameAndClearsItQuickly() async throws {
+        let model = makeModel(mode: .together)
+        XCTAssertTrue(model.randomizeColorTheme())
+        XCTAssertEqual(model.toastMessage, model.colorTheme.name)
+
+        try await Task.sleep(for: ChooserAppModel.themeNameToastDuration + .milliseconds(300))
         XCTAssertNil(model.toastMessage)
+    }
+
+    func testRapidShufflesShowOnlyTheLatestName() async throws {
+        let model = ChooserAppModel(
+            modeStore: MemoryLaunchDefaultModeStore(storedMode: .together),
+            colorThemeStore: MemoryChooserColorThemeStore(storedTheme: .wingspanOriginal),
+            onboardingStore: MemoryOnboardingProgressStore(),
+            colorThemeRandomIndexGenerator: FixedRandomIndexGenerator(index: 0),
+            feedback: NativeNoopFeedbackCoordinator()
+        )
+        XCTAssertTrue(model.randomizeColorTheme())
+        // The theme-change debounce blocks an immediate second shuffle.
+        try await Task.sleep(for: .milliseconds(300))
+        XCTAssertTrue(model.randomizeColorTheme())
+        XCTAssertEqual(model.toastMessage, model.colorTheme.name)
+
+        // The first toast's timer must not clear the second name early.
+        try await Task.sleep(for: .milliseconds(1_000))
+        XCTAssertEqual(model.toastMessage, model.colorTheme.name)
+    }
+
+    func testRejectedShuffleAndSettingsSelectionShowNoName() {
+        let model = makeModel(mode: .together)
+        model.confirmation = .clearTapIn(count: 2)
+        XCTAssertFalse(model.randomizeColorTheme())
+        XCTAssertNil(model.toastMessage)
+
+        let settingsModel = makeModel(mode: .together)
+        settingsModel.selectColorTheme(.sagrada)
+        XCTAssertEqual(settingsModel.colorTheme, .sagrada)
+        XCTAssertNil(settingsModel.toastMessage)
     }
 
     func testPhysicalShuffleRestoresAndPreservesRevealedChooserResult() {
@@ -68,6 +113,7 @@ final class ThemeShuffleTests: XCTestCase {
         let model = ChooserAppModel(
             modeStore: MemoryLaunchDefaultModeStore(storedMode: .together),
             colorThemeStore: store,
+            onboardingStore: MemoryOnboardingProgressStore(),
             togetherCore: TogetherChooserCore(
                 scheduler: scheduler,
                 randomIndexGenerator: FixedRandomIndexGenerator(index: 1)
@@ -121,6 +167,7 @@ final class ThemeShuffleTests: XCTestCase {
         let scheduler = ManualChooserScheduler()
         let model = ChooserAppModel(
             modeStore: MemoryLaunchDefaultModeStore(storedMode: .together),
+            onboardingStore: MemoryOnboardingProgressStore(),
             togetherCore: TogetherChooserCore(
                 scheduler: scheduler,
                 randomIndexGenerator: FixedRandomIndexGenerator(index: 0)
@@ -196,6 +243,7 @@ final class ThemeShuffleTests: XCTestCase {
         let store = MemoryChooserColorThemeStore(storedTheme: .leaders)
         let model = ChooserAppModel(
             colorThemeStore: store,
+            onboardingStore: MemoryOnboardingProgressStore(),
             colorThemeRandomIndexGenerator: FixedRandomIndexGenerator(index: 99),
             feedback: NativeNoopFeedbackCoordinator()
         )
@@ -249,6 +297,7 @@ final class ThemeShuffleTests: XCTestCase {
             colorThemeStore: MemoryChooserColorThemeStore(
                 storedTheme: .wingspanOriginal
             ),
+            onboardingStore: MemoryOnboardingProgressStore(),
             colorThemeRandomIndexGenerator: FixedRandomIndexGenerator(index: 0),
             feedback: NativeNoopFeedbackCoordinator()
         )

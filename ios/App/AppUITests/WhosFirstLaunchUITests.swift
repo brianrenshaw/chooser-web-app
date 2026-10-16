@@ -18,7 +18,8 @@ final class WhosFirstLaunchUITests: XCTestCase {
             // suppression or the first-run cover hides the toolbar below.
             "-chooser.onboarding.version", "1",
             "-chooser.onboarding",
-            "(welcome, mode.together, mode.tapIn, mode.pinball, whatsNew.1.1)"
+            "(welcome, mode.together, mode.tapIn, mode.pinball, whatsNew.1.1, hint.themeShuffle)",
+            "-chooser.onboarding.completed-choices", "0"
         ]
         app.launch()
 

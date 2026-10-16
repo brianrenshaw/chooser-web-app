@@ -434,7 +434,10 @@ final class WhosFirstUITests: XCTestCase {
             ("concordia", "Concordia"),
             ("everdell", "Everdell"),
             ("lizard-wizard", "Lizard Wizard"),
-            ("leaders", "Leaders")
+            ("leaders", "Leaders"),
+            ("res-arcana", "Res Arcana"),
+            ("everdell-emerland", "Everdell Emerland"),
+            ("sagrada", "Sagrada")
         ]
 
         for theme in themes {
@@ -828,7 +831,8 @@ final class WhosFirstUITests: XCTestCase {
                 // `OnboardingMoment.currentWhatsNewRelease`; this target cannot
                 // import the app module to read it.
                 "-chooser.onboarding",
-                "(welcome, mode.together, mode.tapIn, mode.pinball, whatsNew.1.1)"
+                "(welcome, mode.together, mode.tapIn, mode.pinball, whatsNew.1.1, hint.themeShuffle)",
+                "-chooser.onboarding.completed-choices", "0"
             ]
         } else {
             // Version 0 fails the store's gate, so any progress a previous test
@@ -837,7 +841,8 @@ final class WhosFirstUITests: XCTestCase {
             // the app container survives between test methods.
             arguments += [
                 "-chooser.onboarding.version", "0",
-                "-chooser.onboarding", "()"
+                "-chooser.onboarding", "()",
+                "-chooser.onboarding.completed-choices", "0"
             ]
         }
         return arguments
