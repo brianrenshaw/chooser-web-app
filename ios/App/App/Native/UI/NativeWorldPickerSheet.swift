@@ -1,9 +1,9 @@
 import SwiftUI
 
-/// The quick world picker: a sheet of labeled preview tiles over the live
-/// board. Tapping a tile applies that world at once, so the board behind the
-/// sheet (and the sheet itself) change while the picker stays up for
-/// browsing. Swipe down or tap Done to leave it.
+/// The quick world picker: a full-height sheet of labeled preview tiles.
+/// Tapping a tile applies that world and closes the sheet, so the chosen
+/// board is the next thing on screen. Swipe down or tap Done to leave
+/// without choosing.
 ///
 /// Settings keeps its own, fuller grid; this one exists so a table can change
 /// the look in two taps without entering Settings.

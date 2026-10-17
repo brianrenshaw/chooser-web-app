@@ -78,20 +78,24 @@ public struct ChooserRootView: View {
                 NativeWorldPickerSheet(
                     selectedColorTheme: model.colorTheme,
                     colorThemes: model.colorThemeOptions,
-                    onSelectColorTheme: model.selectColorTheme,
+                    // One tap picks and leaves: the world is applied and the
+                    // sheet goes away, so the chosen board is what you see next.
+                    onSelectColorTheme: { theme in
+                        model.selectColorTheme(theme)
+                        isWorldPickerPresented = false
+                    },
                     onDismiss: { isWorldPickerPresented = false }
                 )
                 .environment(\.chooserAccentColor, model.colorTheme.accentColor)
                 .environment(\.chooserColorTheme, model.colorTheme)
                 .environment(\.chooserVisualTheme, model.colorTheme.visualTheme)
                 .environment(\.colorScheme, model.colorTheme.preferredColorScheme)
-                // Medium first: the board stays visible above the sheet, so a
-                // tap on a tile is seen on the real board, not only in the
-                // miniature. Large is there for browsing on small phones.
-                .presentationDetents([.medium, .large])
+                // Full height, so nearly every world is on screen at once and
+                // the choice is one tap, not a scroll and a tap.
+                .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
                 .presentationBackground(model.colorTheme.visualTheme.surfaceGradient)
-                .presentationSizing(.form)
+                .presentationSizing(.page)
                 .boardChromeMetrics()
             }
             .toolbarBackground(.hidden, for: .navigationBar)

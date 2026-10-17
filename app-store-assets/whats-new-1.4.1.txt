@@ -1,0 +1,1 @@
+Tapping a world in the quick picker now applies it and closes the picker in one step, and the picker opens at full height so every world is in view.

@@ -1,6 +1,21 @@
 # Who's First? — App Store Readiness
 
-## Version 1.4 (22) — submitted October 16, 2026
+## Version 1.4.1 (23) — submitted October 17, 2026
+
+Content: the quick world picker now applies a world and closes on one tap, and opens at full height (1.4 kept the sheet open at half height so the board could be watched changing behind it; the owner expected pick-and-close). No other change.
+
+- Public release notes: `app-store-assets/whats-new-1.4.1.txt`.
+- App Review notes: `app-store-assets/app-review-notes-1.4.1.txt` (3,977 characters).
+- Validation: `testWorldPickerAppliesAWorldImmediately` rewritten for the new behavior (Done leaves without choosing, a tile tap applies and closes, reopening shows the choice selected) and passing with `testSettingsSelectsAColorThemeAndDismisses`; the unit suite was not rerun, since only the picker's presentation changed.
+- Devices: the development-signed 23 build was installed on BDR 17 (iPhone 17 Pro Max) over the pairing; the iPad refused the install twice with CoreDevice error 4016 (usage assertion), which is the device being asleep or off the network, so it still carries 1.4 (22) until it is woken or the App Store update lands.
+- Archive: `ios/App/build/app-store/WhosFirst-1.4.1-build23.xcarchive`; package: `ios/App/build/app-store/export-build23/App.ipa`, reporting 1.4.1 (23), minimum iOS 26.0, strict/deep codesign under Apple Distribution: Brian Renshaw (2LZJMJR6V8).
+- Upload: delivery `bbc861f3-0b36-430d-a400-819cc026aeb3` uploaded October 17, 2026 with `altool` and the App Store Connect API key.
+- App Store Connect: version 1.4.1 (`d565a2e2-5f2e-45be-aaac-82e7d918ab3c`, release `AFTER_APPROVAL`) created by API; release notes on localization `d4119896-9b74-40fb-a5b9-a6ba0f638242`; review notes on review detail `e142b408-c6b6-4621-bc36-d2063a2bc950`; screenshots inherited from 1.4 unchanged. Build 23 processed `VALID` (minimum iOS 26.0, `usesNonExemptEncryption = false`) and is attached.
+- Review submission: `8de13503-6a76-4176-8b93-4ab16d5b026b` (item `OGRlMTM1MDMtNmE3Ni00MTc2LThiOTMtNGFiMTZkNWIwMjZifDZ8ODkzMzY4MTkw`), submitted `2026-10-17T23:09:40.675Z`, `WAITING_FOR_REVIEW`; 1.4 (22) stays live meanwhile.
+
+## Version 1.4 (22) — approved and released October 17, 2026
+
+Submitted October 16, 2026 (`2026-10-17T02:01:31.481Z`); approved overnight and `READY_FOR_SALE` by the evening of October 17, 2026.
 
 Content: every world now carries an original abstract drawing of its subject (a dragon, a shoal of fish with a shark, a meadow built from tokens, a peacock's fan, a forge, a cathedral's spires and so on) between its atmosphere and its grain, after the owner's direction that color and texture alone were not enough; three new worlds (Wyrmspan, Harmonies, Finspan) bring the total to fourteen; and a quick world picker opens from a new toolbar button as a medium sheet of labeled board tiles over the live board, applying a world on tap. See the README for the full description.
 

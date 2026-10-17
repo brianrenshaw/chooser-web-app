@@ -1,4 +1,4 @@
-Who's First? is a focused, offline, native iPhone and iPad utility with three modes. Build 22 (version 1.4) supports iPhone and iPad and requires iOS 26 or later. There is no login, account, network connection, permission prompt, purchase, advertising, analytics, or data collection.
+Who's First? is a focused, offline, native iPhone and iPad utility with three modes. Build 23 (version 1.4) supports iPhone and iPad and requires iOS 26 or later. There is no login, account, network connection, permission prompt, purchase, advertising, analytics, or data collection.
 
 Use the leading mode menu to select Chooser, Tap In, or Pinball. Settings contains fourteen visual themes plus About, How It Works, and Privacy screens.
 

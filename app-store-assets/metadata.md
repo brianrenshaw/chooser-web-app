@@ -1,6 +1,18 @@
 # Who's First? — App Store Metadata
 
-## Version 1.4 — submitted October 16, 2026
+## Version 1.4.1 — submitted October 17, 2026
+
+Version **1.4.1 (23)**. Public release notes are exactly the contents of `whats-new-1.4.1.txt`:
+
+> Tapping a world in the quick picker now applies it and closes the picker in one step, and the picker opens at full height so every world is in view.
+
+- Version ID: `d565a2e2-5f2e-45be-aaac-82e7d918ab3c`
+- Localization (en-US): `d4119896-9b74-40fb-a5b9-a6ba0f638242`
+- Review detail: `e142b408-c6b6-4621-bc36-d2063a2bc950`, notes from `app-review-notes-1.4.1.txt` (3,977 characters)
+- Release setting: `AFTER_APPROVAL`
+- Everything else, including the twelve 1.4 screenshots, is inherited from 1.4 unchanged. Build and submission identifiers are in `docs/app-store-readiness.md`.
+
+## Version 1.4 — submitted October 16, 2026; approved and released October 17, 2026
 
 Version **1.4 (22)**. Public release notes are exactly the contents of `whats-new-1.4.txt`:
 

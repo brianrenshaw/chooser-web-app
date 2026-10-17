@@ -305,9 +305,9 @@ final class WhosFirstUITests: XCTestCase {
         app.buttons["Done"].tap()
     }
 
-    /// The quick picker: one tap opens a sheet of world tiles, tapping a tile
-    /// applies it at once while the sheet stays up, Done closes it, and the
-    /// choice is the same one Settings then shows as selected.
+    /// The quick picker: one tap opens a full-height sheet of world tiles, one
+    /// tap on a tile applies that world and closes the sheet, Done closes it
+    /// without choosing, and the choice is what Settings then shows selected.
     @MainActor
     func testWorldPickerAppliesAWorldImmediately() {
         let app = launchApp()
@@ -325,28 +325,11 @@ final class WhosFirstUITests: XCTestCase {
         let original = app.descendants(matching: .any)["world-tile-wingspan-original"]
         XCTAssertTrue(original.waitForExistence(timeout: 2))
         XCTAssertEqual(original.value as? String, "Selected")
-
-        let nectar = app.descendants(matching: .any)["world-tile-wingspan-nectar"]
-        XCTAssertTrue(nectar.isHittable)
-        nectar.tap()
-        XCTAssertEqual(nectar.value as? String, "Selected")
-        XCTAssertEqual(original.value as? String, "")
-        XCTAssertTrue(grid.exists, "Choosing a world must not close the picker")
-
-        // Scroll the sheet to a world past the fold and choose it too.
-        let wyrmspan = app.descendants(matching: .any)["world-tile-wyrmspan"]
-        var attempts = 0
-        while !wyrmspan.isHittable, attempts < 6 {
-            grid.swipeUp()
-            attempts += 1
-        }
-        XCTAssertTrue(wyrmspan.isHittable, "Wyrmspan tile should be reachable by scrolling the sheet")
-        wyrmspan.tap()
-        XCTAssertEqual(wyrmspan.value as? String, "Selected")
         settleVisualTransition(0.6)
-        keepScreenshot(named: "World picker — Wyrmspan selected")
+        keepScreenshot(named: "World picker — open")
         writeScreenshot(to: "/private/tmp/whos-first-world-renders/world-picker.png")
 
+        // Done leaves without choosing.
         let done = accessibleElement(
             in: app,
             identifier: "world-picker-done",
@@ -355,8 +338,36 @@ final class WhosFirstUITests: XCTestCase {
         XCTAssertTrue(done.waitForExistence(timeout: 2))
         done.tap()
         XCTAssertTrue(pickerButton.waitForExistence(timeout: 2))
-        settleVisualTransition(0.4)
+        XCTAssertFalse(grid.exists)
+
+        // A tap on a tile applies the world and closes the sheet.
+        pickerButton.tap()
+        XCTAssertTrue(grid.waitForExistence(timeout: 3))
+        let wyrmspan = app.descendants(matching: .any)["world-tile-wyrmspan"]
+        var attempts = 0
+        while !wyrmspan.isHittable, attempts < 6 {
+            grid.swipeUp()
+            attempts += 1
+        }
+        XCTAssertTrue(wyrmspan.isHittable, "Wyrmspan tile should be reachable in the sheet")
+        wyrmspan.tap()
+        XCTAssertTrue(pickerButton.waitForExistence(timeout: 3))
+        XCTAssertFalse(grid.waitForExistence(timeout: 1), "Choosing a world must close the picker")
+        settleVisualTransition(0.5)
         writeScreenshot(to: "/private/tmp/whos-first-world-renders/world-picker-closed.png")
+
+        // Reopening shows the new choice selected.
+        pickerButton.tap()
+        XCTAssertTrue(grid.waitForExistence(timeout: 3))
+        attempts = 0
+        while !wyrmspan.isHittable, attempts < 6 {
+            grid.swipeUp()
+            attempts += 1
+        }
+        XCTAssertEqual(wyrmspan.value as? String, "Selected")
+        XCTAssertEqual(original.value as? String, "")
+        done.tap()
+        XCTAssertTrue(pickerButton.waitForExistence(timeout: 2))
 
         let settings = accessibleElement(
             in: app,
