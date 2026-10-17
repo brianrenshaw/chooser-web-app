@@ -190,6 +190,51 @@ final class ChooserColorThemeTests: XCTestCase {
             ball: "#CFE3F0", ballEdge: "#6F8CA6", ballTail: "#FFFFFF", ballImpact: "#F5C518",
             divider: "#A6A296", dividerSecondary: "#0D080A",
             textureOpacity: 0.032, separatorOpacity: 0.36, dividerOpacity: 0.60
+        ),
+        ExpectedTheme(
+            theme: .wyrmspan, name: "Wyrmspan", appearance: .light,
+            composition: .watercolorSky,
+            stops: [stop("#F3F5F2", 0), stop("#E6EEEC", 0.50), stop("#BFD9DC", 1)],
+            atmosphere: ["#8FBFC8", "#6FA6B2"], atmosphereOpacities: [0.34, 0.26],
+            surfaceTexture: .eggshellSpeckle,
+            surfaceInk: "#27343A", onChromeInk: "#F3F5F2", chrome: "#244C56",
+            action: "#8A2433", detail: "#5C96A4", secondaryDetail: "#B9A64A",
+            participants: ["#8A2433", "#5C96A4", "#5B2E6F", "#8E9B33", "#E7E2D8"],
+            finish: .speckledEgg, pinballMaterial: .jadeEgg,
+            ball: "#B9A64A", ballEdge: "#5E6A1C", ballTail: "#5C96A4", ballImpact: "#8A2433",
+            divider: "#5A3A28", dividerSecondary: "#F3F5F2",
+            textureOpacity: 0.030, separatorOpacity: 0.30, dividerOpacity: 0.55
+        ),
+        ExpectedTheme(
+            theme: .harmonies, name: "Harmonies", appearance: .light,
+            composition: .sunlitMeadow,
+            stops: [stop("#F2E7CC", 0), stop("#E9DCC0", 0.55), stop("#DCCBA6", 1)],
+            atmosphere: ["#F7DB7A", "#E08A3C"], atmosphereOpacities: [0.40, 0.12],
+            surfaceTexture: .sandedWood,
+            surfaceInk: "#3A2E1F", onChromeInk: "#FFF6E4", chrome: "#2F5293",
+            action: "#BE4252", detail: "#3F9AA6", secondaryDetail: "#F2C94C",
+            participants: ["#3F9AA6", "#BE4252", "#6BA35C", "#7D8590", "#8B5A3C"],
+            finish: .lacqueredToken, pinballMaterial: .amberBead,
+            ball: "#E9A040", ballEdge: "#8A4F12", ballTail: "#F2C94C", ballImpact: "#2F5293",
+            divider: "#8B5A3C", dividerSecondary: "#F2E7CC",
+            textureOpacity: 0.032, separatorOpacity: 0.30, dividerOpacity: 0.60
+        ),
+        ExpectedTheme(
+            theme: .finspan, name: "Finspan", appearance: .dark,
+            composition: .oceanDescent,
+            stops: [
+                stop("#7FD2D6", 0), stop("#1E6E8A", 0.18), stop("#143E5E", 0.55),
+                stop("#0A1C2E", 0.80), stop("#040A14", 1)
+            ],
+            atmosphere: ["#C6ECEC", "#9FE8E0"], atmosphereOpacities: [0.40, 0.10],
+            surfaceTexture: .seaFoam,
+            surfaceInk: "#E8F4F4", onChromeInk: "#E8F4F4", chrome: "#0E2E44",
+            action: "#F0674D", detail: "#5FC9A9", secondaryDetail: "#F2C230",
+            participants: ["#5FC9A9", "#F0674D", "#F2C230", "#F28BB0", "#F2F4EE"],
+            finish: .bubbleBead, pinballMaterial: .foamBubble,
+            ball: "#E8F4F4", ballEdge: "#6FA3B8", ballTail: "#9FE8E0", ballImpact: "#F0674D",
+            divider: "#E8F4F4", dividerSecondary: "#0B2538",
+            textureOpacity: 0.030, separatorOpacity: 0.36, dividerOpacity: 0.60
         )
     ]
 
@@ -203,7 +248,8 @@ final class ChooserColorThemeTests: XCTestCase {
         XCTAssertEqual(ChooserColorTheme.allCases.map(\.rawValue), [
             "wingspan-original", "wingspan-nectar", "wingspan-hummingbirds", "nidavellir",
             "concordia", "everdell", "lizard-wizard", "leaders",
-            "res-arcana", "everdell-emerland", "sagrada"
+            "res-arcana", "everdell-emerland", "sagrada",
+            "wyrmspan", "harmonies", "finspan"
         ])
 
         for expected in expectedThemes {
@@ -245,12 +291,15 @@ final class ChooserColorThemeTests: XCTestCase {
     }
 
     func testThemesHaveDistinctSurfacesFinishesSeedsAndInternalSwatches() {
-        XCTAssertEqual(Set(expectedThemes.map { $0.composition }).count, 11)
-        XCTAssertEqual(Set(expectedThemes.map { $0.surfaceTexture }).count, 11)
-        XCTAssertEqual(Set(expectedThemes.map { $0.stops.map(\.hex).joined(separator: ":") }).count, 11)
-        XCTAssertEqual(Set(expectedThemes.map(\.finish)).count, 11)
-        XCTAssertEqual(Set(expectedThemes.map(\.pinballMaterial)).count, 11)
-        XCTAssertEqual(Set(ChooserColorTheme.allCases.map { $0.visualTheme.textureSeed }).count, 11)
+        let worldCount = expectedThemes.count
+        XCTAssertEqual(worldCount, 14)
+        XCTAssertEqual(Set(expectedThemes.map { $0.composition }).count, worldCount)
+        XCTAssertEqual(Set(expectedThemes.map { $0.surfaceTexture }).count, worldCount)
+        XCTAssertEqual(Set(expectedThemes.map { $0.stops.map(\.hex).joined(separator: ":") }).count, worldCount)
+        XCTAssertEqual(Set(expectedThemes.map(\.finish)).count, worldCount)
+        XCTAssertEqual(Set(expectedThemes.map(\.pinballMaterial)).count, worldCount)
+        XCTAssertEqual(Set(ChooserColorTheme.allCases.map { $0.visualTheme.textureSeed }).count, worldCount)
+        XCTAssertEqual(Set(ChooserColorTheme.allCases.map { $0.visualTheme.subjectArt }).count, worldCount)
 
         for expected in expectedThemes {
             XCTAssertEqual(expected.participants.count, 5)
@@ -261,9 +310,9 @@ final class ChooserColorThemeTests: XCTestCase {
 
         XCTAssertEqual(
             ChooserColorTheme.allCases.filter { $0.appearance == .light },
-            [.wingspanOriginal, .concordia, .leaders, .everdellEmerland]
+            [.wingspanOriginal, .concordia, .leaders, .everdellEmerland, .wyrmspan, .harmonies]
         )
-        XCTAssertEqual(ChooserColorTheme.allCases.filter { $0.appearance == .dark }.count, 7)
+        XCTAssertEqual(ChooserColorTheme.allCases.filter { $0.appearance == .dark }.count, 8)
     }
 
     func testEveryWorldHasItsOwnDividerStyleAndBallOrnament() {
@@ -278,7 +327,10 @@ final class ChooserColorThemeTests: XCTestCase {
             .leaders: .goldInlay,
             .resArcana: .stitchedSeam,
             .everdellEmerland: .rope,
-            .sagrada: .stoneMullion
+            .sagrada: .stoneMullion,
+            .wyrmspan: .pencil,
+            .harmonies: .dottedRoute,
+            .finspan: .inkKeyline
         ]
         let expectedOrnaments: [ChooserColorTheme: PinballBallOrnament] = [
             .wingspanOriginal: .speckledEgg,
@@ -291,7 +343,10 @@ final class ChooserColorThemeTests: XCTestCase {
             .leaders: .glassBead,
             .resArcana: .glassBead,
             .everdellEmerland: .facetedGem,
-            .sagrada: .clearGlass
+            .sagrada: .clearGlass,
+            .wyrmspan: .speckledEgg,
+            .harmonies: .glassBead,
+            .finspan: .clearGlass
         ]
         XCTAssertEqual(Set(expectedDividers.keys), Set(ChooserColorTheme.allCases))
         for theme in ChooserColorTheme.allCases {

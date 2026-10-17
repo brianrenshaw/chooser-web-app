@@ -305,6 +305,80 @@ final class WhosFirstUITests: XCTestCase {
         app.buttons["Done"].tap()
     }
 
+    /// The quick picker: one tap opens a sheet of world tiles, tapping a tile
+    /// applies it at once while the sheet stays up, Done closes it, and the
+    /// choice is the same one Settings then shows as selected.
+    @MainActor
+    func testWorldPickerAppliesAWorldImmediately() {
+        let app = launchApp()
+        let pickerButton = accessibleElement(
+            in: app,
+            identifier: "world-picker-button",
+            fallbackLabel: "Worlds"
+        )
+        XCTAssertTrue(pickerButton.waitForExistence(timeout: 3))
+        XCTAssertTrue(pickerButton.isHittable)
+        pickerButton.tap()
+
+        let grid = app.descendants(matching: .any)["world-picker"]
+        XCTAssertTrue(grid.waitForExistence(timeout: 3))
+        let original = app.descendants(matching: .any)["world-tile-wingspan-original"]
+        XCTAssertTrue(original.waitForExistence(timeout: 2))
+        XCTAssertEqual(original.value as? String, "Selected")
+
+        let nectar = app.descendants(matching: .any)["world-tile-wingspan-nectar"]
+        XCTAssertTrue(nectar.isHittable)
+        nectar.tap()
+        XCTAssertEqual(nectar.value as? String, "Selected")
+        XCTAssertEqual(original.value as? String, "")
+        XCTAssertTrue(grid.exists, "Choosing a world must not close the picker")
+
+        // Scroll the sheet to a world past the fold and choose it too.
+        let wyrmspan = app.descendants(matching: .any)["world-tile-wyrmspan"]
+        var attempts = 0
+        while !wyrmspan.isHittable, attempts < 6 {
+            grid.swipeUp()
+            attempts += 1
+        }
+        XCTAssertTrue(wyrmspan.isHittable, "Wyrmspan tile should be reachable by scrolling the sheet")
+        wyrmspan.tap()
+        XCTAssertEqual(wyrmspan.value as? String, "Selected")
+        settleVisualTransition(0.6)
+        keepScreenshot(named: "World picker — Wyrmspan selected")
+        writeScreenshot(to: "/private/tmp/whos-first-world-renders/world-picker.png")
+
+        let done = accessibleElement(
+            in: app,
+            identifier: "world-picker-done",
+            fallbackLabel: "Done"
+        )
+        XCTAssertTrue(done.waitForExistence(timeout: 2))
+        done.tap()
+        XCTAssertTrue(pickerButton.waitForExistence(timeout: 2))
+        settleVisualTransition(0.4)
+        writeScreenshot(to: "/private/tmp/whos-first-world-renders/world-picker-closed.png")
+
+        let settings = accessibleElement(
+            in: app,
+            identifier: "settings-button",
+            fallbackLabel: "Settings"
+        )
+        settings.tap()
+        XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 2))
+        let option = app.descendants(matching: .any)["theme-option-wyrmspan"]
+        revealSettingsElement(option, in: app, named: "Wyrmspan")
+        XCTAssertEqual(option.value as? String, "Selected")
+        app.buttons["Done"].tap()
+    }
+
+    /// A plain PNG on disk beside the world renders, so the sheet can be
+    /// looked at without opening an xcresult bundle.
+    @MainActor
+    private func writeScreenshot(to path: String) {
+        let data = XCUIScreen.main.screenshot().pngRepresentation
+        try? data.write(to: URL(fileURLWithPath: path))
+    }
+
     @MainActor
     func testSettingsKeepsACommittedTapInGroup() {
         let app = launchApp(defaultMode: "tapIn")
@@ -437,7 +511,10 @@ final class WhosFirstUITests: XCTestCase {
             ("leaders", "Leaders"),
             ("res-arcana", "Res Arcana"),
             ("everdell-emerland", "Everdell Emerland"),
-            ("sagrada", "Sagrada")
+            ("sagrada", "Sagrada"),
+            ("wyrmspan", "Wyrmspan"),
+            ("harmonies", "Harmonies"),
+            ("finspan", "Finspan")
         ]
 
         for theme in themes {

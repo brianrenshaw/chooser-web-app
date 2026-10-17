@@ -1,5 +1,18 @@
 # Who's First? — App Store Metadata
 
+## Version 1.4 — submitted October 16, 2026
+
+Version **1.4 (22)**. Public release notes are exactly the contents of `whats-new-1.4.txt`:
+
+> Three new visual worlds: Wyrmspan, Harmonies, and Finspan. Every world now shows its subject in abstract form, from a dragon and a shoal of fish to a forest with its animals.
+
+- Version ID: `b1faf493-afb3-4f5d-97da-987089680e9f`
+- Build/delivery ID: `20eb8cd0-6b52-4c22-a18f-4dcb952e5541` — `VALID`, iOS 26+, iPhone and iPad, no non-exempt encryption
+- Localization (en-US): `77d71fca-5ca6-49f4-bf02-9e737b1982d6`
+- Review detail: `661575d5-f8df-4d92-9e97-1ce62cbc2b12`, notes from `app-review-notes-1.4.txt` (3,956 characters)
+- Release setting: `AFTER_APPROVAL`
+- Description, subtitle, promotional text, keywords and URLs were inherited from 1.3 unchanged. Screenshots and the review submission are recorded in `docs/app-store-readiness.md`.
+
 ## Version 1.2 — submitted September 7, 2026
 
 Version **1.2 (20)** is **WAITING_FOR_REVIEW**. Public release notes are exactly:

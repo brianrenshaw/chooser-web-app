@@ -460,7 +460,7 @@ private struct NativeColorThemeOption: View {
     }
 }
 
-private struct NativeThemeBoardPreview: View {
+struct NativeThemeBoardPreview: View {
     let theme: ChooserColorTheme
 
     var body: some View {

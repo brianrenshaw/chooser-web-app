@@ -25,6 +25,12 @@ public enum BoardSurfaceComposition: String, Codable, CaseIterable, Sendable {
     case canopyRiverValley
     /// Leaded dusk-glass shards around a rose window, in a stone frame.
     case roseWindow
+    /// White paper under teal watercolor blooms, with a dragon over it.
+    case watercolorSky
+    /// A sand hex board under a warm sun, striped hills at the foot.
+    case sunlitMeadow
+    /// The water column: sunlit aqua at the top falling to midnight.
+    case oceanDescent
 }
 
 /// Surface texture is independent from the material used by rings and chits.
@@ -40,6 +46,12 @@ public enum BoardSurfaceTextureKind: String, Codable, CaseIterable, Sendable {
     case leatherGrain
     case paintedCanopy
     case cathedralGlass
+    /// Cold-press paper with egg-speckle flecks.
+    case eggshellSpeckle
+    /// Fine sanded wood grain, like a token's face.
+    case sandedWood
+    /// A faint pebbling, like foam on water.
+    case seaFoam
 
     var rendererFinish: BoardPieceFinish {
         switch self {
@@ -55,6 +67,9 @@ public enum BoardSurfaceTextureKind: String, Codable, CaseIterable, Sendable {
         // Brushwork on the board reads as soft flecks; grain belongs to the pieces.
         case .paintedCanopy: .watercolorEggshell
         case .cathedralGlass: .leadedGlass
+        case .eggshellSpeckle: .speckledEgg
+        case .sandedWood: .lacqueredToken
+        case .seaFoam: .bubbleBead
         }
     }
 
@@ -73,6 +88,9 @@ public enum BoardSurfaceTextureKind: String, Codable, CaseIterable, Sendable {
         case .leatherGrain: 1.8
         case .paintedCanopy: 1.8
         case .cathedralGlass: 1.4
+        case .eggshellSpeckle: 1.5
+        case .sandedWood: 1.5
+        case .seaFoam: 1.3
         }
     }
 }
@@ -142,6 +160,12 @@ public enum BoardPieceFinish: String, Codable, Sendable {
     case paintedWood
     /// Lit glass with streaks, held in a near-black lead rim.
     case leadedGlass
+    /// A speckled wooden dragon egg: dense specks and a dark rim.
+    case speckledEgg
+    /// A lacquered wooden landscape token: a top sheen over a visible side.
+    case lacqueredToken
+    /// A glass bubble bead: light inside, a foam rim and a bright specular.
+    case bubbleBead
 }
 
 struct BoardPieceMaterialPresentation: Equatable, Sendable {
@@ -236,6 +260,27 @@ extension BoardPieceFinish {
                 innerOcclusionOpacity: 0.34, reliefRotationDegrees: -30,
                 textureMultiplier: 1.70, shadowMultiplier: 1.00
             )
+        case .speckledEgg:
+            BoardPieceMaterialPresentation(
+                outerEdgeWidth: 2.3, innerEdgeWidth: 1.6, bevelOpacity: 0.24,
+                edgeTintOpacity: 0.60, reliefOpacity: 0.18,
+                innerOcclusionOpacity: 0.28, reliefRotationDegrees: -24,
+                textureMultiplier: 1.95, shadowMultiplier: 0.86
+            )
+        case .lacqueredToken:
+            BoardPieceMaterialPresentation(
+                outerEdgeWidth: 2.5, innerEdgeWidth: 1.7, bevelOpacity: 0.26,
+                edgeTintOpacity: 0.64, reliefOpacity: 0.20,
+                innerOcclusionOpacity: 0.32, reliefRotationDegrees: -10,
+                textureMultiplier: 2.35, shadowMultiplier: 0.98
+            )
+        case .bubbleBead:
+            BoardPieceMaterialPresentation(
+                outerEdgeWidth: 2.0, innerEdgeWidth: 1.5, bevelOpacity: 0.38,
+                edgeTintOpacity: 0.56, reliefOpacity: 0.26,
+                innerOcclusionOpacity: 0.26, reliefRotationDegrees: -36,
+                textureMultiplier: 1.50, shadowMultiplier: 0.90
+            )
         }
     }
 }
@@ -252,6 +297,12 @@ public enum PinballMaterialKind: String, Codable, Sendable {
     case garnetBead
     case cutEmerald
     case clearGlassBead
+    /// A speckled jade dragon egg.
+    case jadeEgg
+    /// A translucent amber bead, like an animal cube.
+    case amberBead
+    /// A foam-rimmed bubble.
+    case foamBubble
 }
 
 /// Extra geometry drawn on top of the shared ball layers. Kept in the shared
@@ -385,6 +436,24 @@ extension PinballMaterialKind {
                 rimWidth: 1.3, rimAlpha: 0.70, markRadius: 0, markAlpha: 0,
                 ornament: .clearGlass
             )
+        case .jadeEgg:
+            PinballMaterialPresentation(
+                edgeWidth: 1.9, shadeRadius: 0.73, shadeAlpha: 0.17,
+                rimWidth: 1.1, rimAlpha: 0.44, markRadius: 0.13, markAlpha: 0.20,
+                ornament: .speckledEgg
+            )
+        case .amberBead:
+            PinballMaterialPresentation(
+                edgeWidth: 1.6, shadeRadius: 0.76, shadeAlpha: 0.12,
+                rimWidth: 1.2, rimAlpha: 0.36, markRadius: 0.16, markAlpha: 0.14,
+                ornament: .glassBead
+            )
+        case .foamBubble:
+            PinballMaterialPresentation(
+                edgeWidth: 1.3, shadeRadius: 0.82, shadeAlpha: 0.10,
+                rimWidth: 1.4, rimAlpha: 0.72, markRadius: 0, markAlpha: 0,
+                ornament: .clearGlass
+            )
         }
     }
 }
@@ -409,6 +478,8 @@ public struct ChooserVisualTheme: Sendable {
     public let dividerHex: String
     public let dividerSecondaryHex: String?
     public let dividerStyle: BoardDividerStyle
+    /// The world's abstract subject, drawn over the surface and under the pieces.
+    public let subjectArt: BoardSubjectArt
     /// A world whose own palette is red can supply a destructive fill that
     /// still stands apart from its pieces. Nil keeps the shared semantic red.
     public let destructiveOverrideHex: String?
@@ -429,6 +500,7 @@ public struct ChooserVisualTheme: Sendable {
         participantHexValues: [String],
         pieceFinish: BoardPieceFinish,
         pinballMaterial: PinballMaterialKind,
+        subjectArt: BoardSubjectArt,
         ballHex: String,
         ballEdgeHex: String,
         ballTailHex: String,
@@ -456,6 +528,7 @@ public struct ChooserVisualTheme: Sendable {
         self.participantHexValues = participantHexValues
         self.pieceFinish = pieceFinish
         self.authoredPinballMaterial = pinballMaterial
+        self.subjectArt = subjectArt
         self.ballHex = ballHex
         self.ballEdgeHex = ballEdgeHex
         self.ballTailHex = ballTailHex
@@ -649,6 +722,9 @@ public enum ChooserColorTheme: String, CaseIterable, Codable, Identifiable, Send
     case resArcana = "res-arcana"
     case everdellEmerland = "everdell-emerland"
     case sagrada
+    case wyrmspan
+    case harmonies
+    case finspan
 
     public static let defaultTheme: ChooserColorTheme = .wingspanOriginal
     public static var wingspanAsia: ChooserColorTheme { .wingspanNectar }
@@ -668,6 +744,9 @@ public enum ChooserColorTheme: String, CaseIterable, Codable, Identifiable, Send
         case .resArcana: "Res Arcana"
         case .everdellEmerland: "Everdell Emerland"
         case .sagrada: "Sagrada"
+        case .wyrmspan: "Wyrmspan"
+        case .harmonies: "Harmonies"
+        case .finspan: "Finspan"
         }
     }
 
@@ -694,6 +773,7 @@ public enum ChooserColorTheme: String, CaseIterable, Codable, Identifiable, Send
                 detailAccentHex: "#D5A62D", secondaryDetailHex: "#7EAFCA",
                 participantHexValues: ["#D95C4E", "#D5A62D", "#3D78A1", "#508467", "#80658A"],
                 pieceFinish: .watercolorEggshell, pinballMaterial: .coralEnamel,
+                subjectArt: .fieldGuideBirds,
                 ballHex: "#9FD0E3", ballEdgeHex: "#4E8AA4",
                 ballTailHex: "#7EAFCA", ballImpactHex: "#27363B",
                 dividerHex: "#4A4F52", dividerSecondaryHex: "#F7F4EC",
@@ -722,6 +802,7 @@ public enum ChooserColorTheme: String, CaseIterable, Codable, Identifiable, Send
                 detailAccentHex: "#2BA5A1", secondaryDetailHex: "#D4A42E",
                 participantHexValues: ["#0C6B4D", "#20539A", "#F3E3C3", "#2BA5A1", "#D4A42E"],
                 pieceFinish: .peacockJewelEnamel, pinballMaterial: .emeraldEnamel,
+                subjectArt: .peacockFan,
                 ballHex: "#0C6B4D", ballEdgeHex: "#033524",
                 ballTailHex: "#2BA5A1", ballImpactHex: "#D4A42E",
                 dividerHex: "#F3E3C3", dividerSecondaryHex: "#3E0C12",
@@ -748,6 +829,7 @@ public enum ChooserColorTheme: String, CaseIterable, Codable, Identifiable, Send
                 detailAccentHex: "#E85A3B", secondaryDetailHex: "#F1D35A",
                 participantHexValues: ["#B0234A", "#EF4770", "#E85A3B", "#F1D35A", "#0A7880"],
                 pieceFinish: .featherJewelEnamel, pinballMaterial: .flamingoEnamel,
+                subjectArt: .hummingbirdsAndBlooms,
                 ballHex: "#EF4770", ballEdgeHex: "#8E1F3F",
                 ballTailHex: "#EF4770", ballImpactHex: "#F1D35A",
                 dividerHex: "#FFF9E9", dividerSecondaryHex: "#0B2B21",
@@ -775,6 +857,7 @@ public enum ChooserColorTheme: String, CaseIterable, Codable, Identifiable, Send
                 detailAccentHex: "#788B94", secondaryDetailHex: "#C9A03A",
                 participantHexValues: ["#6B3F8C", "#3F7F3A", "#2F5F9E", "#D97A1E", "#B02E2E"],
                 pieceFinish: .hammeredMetal, pinballMaterial: .agedCopper,
+                subjectArt: .dwarvenForge,
                 ballHex: "#D4A93A", ballEdgeHex: "#7E5E14",
                 ballTailHex: "#D4A93A", ballImpactHex: "#F3F0E9",
                 dividerHex: "#C9A03A", dividerSecondaryHex: "#14171A",
@@ -802,6 +885,7 @@ public enum ChooserColorTheme: String, CaseIterable, Codable, Identifiable, Send
                 detailAccentHex: "#5A3E22", secondaryDetailHex: "#E8DDC0",
                 participantHexValues: ["#D9B44A", "#5E4E8E", "#C25A35", "#7E8F4A", "#B27AA0"],
                 pieceFinish: .frescoEnamel, pinballMaterial: .romanGold,
+                subjectArt: .romanMap,
                 ballHex: "#B07A3A", ballEdgeHex: "#5A3A12",
                 ballTailHex: "#B07A3A", ballImpactHex: "#701426",
                 dividerHex: "#5A3E22", dividerSecondaryHex: "#E8DDC0",
@@ -831,6 +915,7 @@ public enum ChooserColorTheme: String, CaseIterable, Codable, Identifiable, Send
                 detailAccentHex: "#E8B85A", secondaryDetailHex: "#963F50",
                 participantHexValues: ["#D98A1E", "#5B2A5E", "#5E743B", "#B8B4AA", "#963F50"],
                 pieceFinish: .pressedWoodPaper, pinballMaterial: .amberResin,
+                subjectArt: .everTree,
                 ballHex: "#6E2F70", ballEdgeHex: "#2E0F30",
                 ballTailHex: "#963F50", ballImpactHex: "#F3EBC9",
                 dividerHex: "#A87445", dividerSecondaryHex: "#2A1A10",
@@ -861,6 +946,7 @@ public enum ChooserColorTheme: String, CaseIterable, Codable, Identifiable, Send
                 detailAccentHex: "#1697A9", secondaryDetailHex: "#72813A",
                 participantHexValues: ["#2F6FB5", "#5A3A5E", "#1697A9", "#F0C060", "#72813A"],
                 pieceFinish: .midnightEnamel, pinballMaterial: .manaEnamel,
+                subjectArt: .lizardWizardry,
                 ballHex: "#9BB33A", ballEdgeHex: "#3A4710",
                 ballTailHex: "#F0C060", ballImpactHex: "#F6F0E5",
                 dividerHex: "#F6E6C6", dividerSecondaryHex: "#2A1A30",
@@ -888,6 +974,7 @@ public enum ChooserColorTheme: String, CaseIterable, Codable, Identifiable, Send
                 detailAccentHex: "#C73366", secondaryDetailHex: "#43B2BA",
                 participantHexValues: ["#08747C", "#43B2BA", "#053842", "#C73366", "#D28D00"],
                 pieceFinish: .flatScreenprint, pinballMaterial: .saffronScreenprint,
+                subjectArt: .leadersStandees,
                 ballHex: "#D28D00", ballEdgeHex: "#7A5100",
                 ballTailHex: "#D28D00", ballImpactHex: "#C73366",
                 dividerHex: "#B8902A", dividerSecondaryHex: "#053842",
@@ -917,6 +1004,7 @@ public enum ChooserColorTheme: String, CaseIterable, Codable, Identifiable, Send
                 detailAccentHex: "#CDB79A", secondaryDetailHex: "#A3121F",
                 participantHexValues: ["#A3121F", "#E4D6BE", "#2E2024", "#D9482A", "#8A7D7A"],
                 pieceFinish: .waxSeal, pinballMaterial: .garnetBead,
+                subjectArt: .alchemistsCandle,
                 ballHex: "#C21A2A", ballEdgeHex: "#4A0610",
                 ballTailHex: "#E0442C", ballImpactHex: "#E4D6BE",
                 dividerHex: "#CDB79A", dividerSecondaryHex: "#050102",
@@ -948,6 +1036,7 @@ public enum ChooserColorTheme: String, CaseIterable, Codable, Identifiable, Send
                 detailAccentHex: "#0E97AA", secondaryDetailHex: "#F29B30",
                 participantHexValues: ["#DE5A9E", "#F29B30", "#0E97AA", "#7E55BF", "#8A5A38"],
                 pieceFinish: .paintedWood, pinballMaterial: .cutEmerald,
+                subjectArt: .jungleCanopyAnimals,
                 ballHex: "#138A52", ballEdgeHex: "#033A22",
                 ballTailHex: "#BFF5D8", ballImpactHex: "#F29B30",
                 dividerHex: "#C7A06A", dividerSecondaryHex: "#3F2A14",
@@ -976,11 +1065,101 @@ public enum ChooserColorTheme: String, CaseIterable, Codable, Identifiable, Send
                 detailAccentHex: "#A6A296", secondaryDetailHex: "#1C6FD0",
                 participantHexValues: ["#F5C518", "#E0262E", "#1C6FD0", "#23A04A", "#9A2DB5"],
                 pieceFinish: .leadedGlass, pinballMaterial: .clearGlassBead,
+                subjectArt: .basilicaAndDove,
                 ballHex: "#CFE3F0", ballEdgeHex: "#6F8CA6",
                 ballTailHex: "#FFFFFF", ballImpactHex: "#F5C518",
                 dividerHex: "#A6A296", dividerSecondaryHex: "#0D080A",
                 dividerStyle: .stoneMullion,
                 textureSeed: 0x53414752414441, textureOpacity: 0.032,
+                separatorOpacity: 0.36, dividerOpacity: 0.60
+            )
+        case .wyrmspan:
+            // The cover's white paper and teal watercolor blooms, with the
+            // dragon over them; speckled egg pieces in the egg-bag colors and
+            // a jade egg ball.
+            ChooserVisualTheme(
+                appearance: .light,
+                surfaceRecipe: BoardSurfaceRecipe(
+                    composition: .watercolorSky,
+                    stops: [
+                        BoardSurfaceStop(hex: "#F3F5F2", location: 0),
+                        BoardSurfaceStop(hex: "#E6EEEC", location: 0.50),
+                        BoardSurfaceStop(hex: "#BFD9DC", location: 1)
+                    ],
+                    atmosphereHexValues: ["#8FBFC8", "#6FA6B2"],
+                    atmosphereOpacities: [0.34, 0.26],
+                    texture: .eggshellSpeckle
+                ),
+                surfaceInkHex: "#27343A", onChromeInkHex: "#F3F5F2",
+                chromeHex: "#244C56", actionAccentHex: "#8A2433",
+                detailAccentHex: "#5C96A4", secondaryDetailHex: "#B9A64A",
+                participantHexValues: ["#8A2433", "#5C96A4", "#5B2E6F", "#8E9B33", "#E7E2D8"],
+                pieceFinish: .speckledEgg, pinballMaterial: .jadeEgg,
+                subjectArt: .wyrmDragon,
+                ballHex: "#B9A64A", ballEdgeHex: "#5E6A1C",
+                ballTailHex: "#5C96A4", ballImpactHex: "#8A2433",
+                dividerHex: "#5A3A28", dividerSecondaryHex: "#F3F5F2",
+                dividerStyle: .pencil,
+                textureSeed: 0x5759524D5350414E, textureOpacity: 0.030,
+                separatorOpacity: 0.30, dividerOpacity: 0.55
+            )
+        case .harmonies:
+            // A sand hex board under the lion-sun, a meadow built from the
+            // game's wooden tokens; lacquered token pieces and an amber bead.
+            ChooserVisualTheme(
+                appearance: .light,
+                surfaceRecipe: BoardSurfaceRecipe(
+                    composition: .sunlitMeadow,
+                    stops: [
+                        BoardSurfaceStop(hex: "#F2E7CC", location: 0),
+                        BoardSurfaceStop(hex: "#E9DCC0", location: 0.55),
+                        BoardSurfaceStop(hex: "#DCCBA6", location: 1)
+                    ],
+                    atmosphereHexValues: ["#F7DB7A", "#E08A3C"],
+                    atmosphereOpacities: [0.40, 0.12],
+                    texture: .sandedWood
+                ),
+                surfaceInkHex: "#3A2E1F", onChromeInkHex: "#FFF6E4",
+                chromeHex: "#2F5293", actionAccentHex: "#BE4252",
+                detailAccentHex: "#3F9AA6", secondaryDetailHex: "#F2C94C",
+                participantHexValues: ["#3F9AA6", "#BE4252", "#6BA35C", "#7D8590", "#8B5A3C"],
+                pieceFinish: .lacqueredToken, pinballMaterial: .amberBead,
+                subjectArt: .tokenMeadow,
+                ballHex: "#E9A040", ballEdgeHex: "#8A4F12",
+                ballTailHex: "#F2C94C", ballImpactHex: "#2F5293",
+                dividerHex: "#8B5A3C", dividerSecondaryHex: "#F2E7CC",
+                dividerStyle: .dottedRoute,
+                textureSeed: 0x4841524D4F4E4945, textureOpacity: 0.032,
+                separatorOpacity: 0.30, dividerOpacity: 0.60
+            )
+        case .finspan:
+            // The ocean mat's three zones stacked down the board, sunlight to
+            // midnight; bubble bead pieces in the diver colors and a foam ball.
+            ChooserVisualTheme(
+                appearance: .dark,
+                surfaceRecipe: BoardSurfaceRecipe(
+                    composition: .oceanDescent,
+                    stops: [
+                        BoardSurfaceStop(hex: "#7FD2D6", location: 0),
+                        BoardSurfaceStop(hex: "#1E6E8A", location: 0.18),
+                        BoardSurfaceStop(hex: "#143E5E", location: 0.55),
+                        BoardSurfaceStop(hex: "#0A1C2E", location: 0.80),
+                        BoardSurfaceStop(hex: "#040A14", location: 1)
+                    ],
+                    atmosphereHexValues: ["#C6ECEC", "#9FE8E0"],
+                    atmosphereOpacities: [0.40, 0.10],
+                    texture: .seaFoam
+                ),
+                surfaceInkHex: "#E8F4F4", onChromeInkHex: "#E8F4F4",
+                chromeHex: "#0E2E44", actionAccentHex: "#F0674D",
+                detailAccentHex: "#5FC9A9", secondaryDetailHex: "#F2C230",
+                participantHexValues: ["#5FC9A9", "#F0674D", "#F2C230", "#F28BB0", "#F2F4EE"],
+                pieceFinish: .bubbleBead, pinballMaterial: .foamBubble,
+                subjectArt: .oceanDescent,
+                ballHex: "#E8F4F4", ballEdgeHex: "#6FA3B8",
+                ballTailHex: "#9FE8E0", ballImpactHex: "#F0674D",
+                dividerHex: "#E8F4F4", dividerSecondaryHex: "#0B2538",
+                textureSeed: 0x46494E5350414E21, textureOpacity: 0.030,
                 separatorOpacity: 0.36, dividerOpacity: 0.60
             )
         }

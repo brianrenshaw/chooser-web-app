@@ -112,6 +112,42 @@ struct BoardPieceFinishOverlay: View {
                     .rotationEffect(.degrees(-30))
                     .offset(x: -diameter * 0.16, y: -diameter * (bandWidth == nil ? 0.22 : 0.37))
             }
+        case .speckledEgg:
+            // A dragon egg: dense dark specks and a soft sheen.
+            ZStack {
+                SpeckleShape(seed: style.textureSeed, count: bandWidth == nil ? 14 : 22)
+                    .fill(style.keyline.opacity(clamped(0.55 * Double(policy.materialReliefOpacityMultiplier))))
+                    .mask(pieceMask)
+                satinSheen(opacity: 0.26)
+            }
+        case .lacqueredToken:
+            // A lacquered wooden token: a sheen on top and the darker side
+            // showing along the lower edge, a cylinder seen from slightly above.
+            ZStack {
+                Circle()
+                    .trim(from: 0.06, to: 0.44)
+                    .stroke(
+                        style.shade.opacity(clamped(0.55 * Double(policy.materialReliefOpacityMultiplier))),
+                        lineWidth: max(1.2, diameter * 0.03)
+                    )
+                    .padding(max(0.6, diameter * 0.012))
+                satinSheen(opacity: 0.28)
+            }
+        case .bubbleBead:
+            // A glass bubble: light gathers inside, a foam rim, a bright specular.
+            ZStack {
+                RadialGradient(
+                    colors: [Color.white.opacity(0.40), Color.white.opacity(0)],
+                    center: UnitPoint(x: 0.38, y: 0.32),
+                    startRadius: 0,
+                    endRadius: diameter * 0.48
+                )
+                .opacity(Double(policy.materialReliefOpacityMultiplier))
+                .mask(pieceMask)
+                Circle()
+                    .strokeBorder(Color.white.opacity(0.75), lineWidth: max(0.8, diameter * 0.012))
+                satinSheen(opacity: 0.42)
+            }
         }
     }
 

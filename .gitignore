@@ -7,3 +7,4 @@ ios/.sourcemaps/
 *.log
 /demo-assets/
 /artifacts/
+ios/App/.screenshot-build/

@@ -46,6 +46,12 @@ public struct BoardFinishTextureView: View {
                 drawWoodGrain(context: &context, size: size, generator: &generator)
             case .leadedGlass:
                 drawGlassStreaks(context: &context, size: size, generator: &generator)
+            case .speckledEgg:
+                drawSoftFlecks(context: &context, size: size, generator: &generator, count: 70)
+            case .lacqueredToken:
+                drawWoodGrain(context: &context, size: size, generator: &generator)
+            case .bubbleBead:
+                drawPebbledGrain(context: &context, size: size, generator: &generator)
             }
         }
         .foregroundStyle(ink)
@@ -355,6 +361,12 @@ struct BoardAccessibilityAppearancePolicy: Equatable, Sendable {
         reduceTransparency ? 0.38 : 1
     }
 
+    /// Subject silhouettes are opaque forms rather than translucent washes,
+    /// so they stay whole but step back when transparent layering is reduced.
+    var subjectArtOpacityMultiplier: Double {
+        reduceTransparency ? 0.6 : 1
+    }
+
     /// Fine texture is an important material cue under increased contrast,
     /// but it is restrained when transparent layering is reduced.
     var surfaceTextureOpacityMultiplier: Double {
@@ -412,6 +424,8 @@ public struct BoardSurfaceView: View {
                 baseSurface(in: geometry.size)
                 BoardSurfaceAtmosphereView(visualTheme: visualTheme)
                     .opacity(policy.surfaceAtmosphereOpacityMultiplier)
+                BoardSubjectArtView(visualTheme: visualTheme)
+                    .opacity(policy.subjectArtOpacityMultiplier)
                 BoardFinishTextureView(
                     finish: visualTheme.surfaceRecipe.texture.rendererFinish,
                     seed: visualTheme.textureSeed,
@@ -485,7 +499,7 @@ public struct BoardSurfaceView: View {
                 LinearGradient(gradient: gradient, startPoint: .top, endPoint: .bottom)
                 MediterraneanMapStructureView(visualTheme: visualTheme)
             }
-        case .verticalWatercolorWash, .layeredScreenprint:
+        case .verticalWatercolorWash, .layeredScreenprint, .watercolorSky, .sunlitMeadow, .oceanDescent:
             LinearGradient(gradient: gradient, startPoint: .top, endPoint: .bottom)
         case .tooledGrimoire:
             RadialGradient(
@@ -561,6 +575,28 @@ private struct BoardSurfaceAtmosphereView: View {
             CanopyRiverValleyView(visualTheme: visualTheme)
         case .roseWindow:
             RoseWindowLightView(visualTheme: visualTheme)
+        case .watercolorSky:
+            // The same wet-edged blooms as a field guide's washes, in teal.
+            WetEdgeWashView(visualTheme: visualTheme)
+        case .sunlitMeadow:
+            softBloom(
+                index: 0,
+                center: UnitPoint(x: 0.82, y: 0.12),
+                radius: max(size.width, size.height) * 0.42
+            )
+        case .oceanDescent:
+            ZStack {
+                softBloom(
+                    index: 0,
+                    center: UnitPoint(x: 0.5, y: 0),
+                    radius: max(size.width, size.height) * 0.36
+                )
+                softBloom(
+                    index: 1,
+                    center: UnitPoint(x: 0.5, y: 1),
+                    radius: max(size.width, size.height) * 0.5
+                )
+            }
         }
     }
 

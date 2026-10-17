@@ -6,6 +6,7 @@ public struct ChooserRootView: View {
     @Environment(\.openURL) private var openURL
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var isSettingsPresented = false
+    @State private var isWorldPickerPresented = false
 
     public init(model: ChooserAppModel) {
         self.model = model
@@ -69,6 +70,30 @@ public struct ChooserRootView: View {
                 .padding(.top, 6)
                 .padding(.horizontal, 16)
             }
+            // The quick world picker has its own anchor, the board stack, so
+            // it never shares one with the welcome, release-note or Settings
+            // sheets. The model gate below is the real guarantee that none of
+            // them can be up at the same time.
+            .sheet(isPresented: $isWorldPickerPresented) {
+                NativeWorldPickerSheet(
+                    selectedColorTheme: model.colorTheme,
+                    colorThemes: model.colorThemeOptions,
+                    onSelectColorTheme: model.selectColorTheme,
+                    onDismiss: { isWorldPickerPresented = false }
+                )
+                .environment(\.chooserAccentColor, model.colorTheme.accentColor)
+                .environment(\.chooserColorTheme, model.colorTheme)
+                .environment(\.chooserVisualTheme, model.colorTheme.visualTheme)
+                .environment(\.colorScheme, model.colorTheme.preferredColorScheme)
+                // Medium first: the board stays visible above the sheet, so a
+                // tap on a tile is seen on the real board, not only in the
+                // miniature. Large is there for browsing on small phones.
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+                .presentationBackground(model.colorTheme.visualTheme.surfaceGradient)
+                .presentationSizing(.form)
+                .boardChromeMetrics()
+            }
             .toolbarBackground(.hidden, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
@@ -78,6 +103,17 @@ public struct ChooserRootView: View {
                         isEnabled: model.isModeChangeEnabled,
                         onModeChange: model.requestModeSelection,
                         onSetDefaultMode: { _ in model.setCurrentModeAsLaunchDefault() }
+                    )
+                }
+
+                ToolbarItem(placement: .topBarTrailing) {
+                    NativeWorldPickerButton(
+                        isEnabled: model.isSettingsEnabled,
+                        action: {
+                            if model.prepareToPresentSettings() {
+                                isWorldPickerPresented = true
+                            }
+                        }
                     )
                 }
 

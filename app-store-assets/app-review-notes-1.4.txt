@@ -1,0 +1,28 @@
+Who's First? is a focused, offline, native iPhone and iPad utility with three modes. Build 22 (version 1.4) supports iPhone and iPad and requires iOS 26 or later. There is no login, account, network connection, permission prompt, purchase, advertising, analytics, or data collection.
+
+Use the leading mode menu to select Chooser, Tap In, or Pinball. Settings contains fourteen visual themes plus About, How It Works, and Privacy screens.
+
+NEW IN 1.4
+Three new visual themes (Wyrmspan, Harmonies, Finspan). Every theme now carries an original abstract drawing of its subject under the pieces (a dragon, a shoal of fish, a meadow of wooden tokens, a peacock's fan, a forge, cathedral spires): generic subjects in the app's own flat style, not artwork from any game.
+
+CHOOSER
+Place two or more fingers on the screen at once and hold them. The app waits 0.35 seconds for late participants, then runs a 1.65-second synchronized visual/Core Haptics ritual and selects one active finger with secure on-device randomness. The winning ring is the result; VoiceOver announces it. A physical multitouch device is needed to test this mode, and a physical iPhone for its haptics.
+
+TAP IN
+Each participant taps once for a numbered entry. At two or more, tap Pick N. Try Again draws independently and may repeat a winner. Undo removes the newest entry; Clear confirms; New group clears all. Capacity is 50.
+
+PINBALL
+2-12 participants tap nearest their seats; rays mark exact equal-area regions. Flick anywhere. Once the gesture qualifies, the ball appears under the finger and launches from the collision-safe release point in the release direction.
+
+After release, secure on-device randomness selects one seat with probability exactly 1/N. The winner is drawn before any path is solved and is never redrawn to make a path easier to find; if no path can be built the round fails closed and the player flicks again.
+
+If the ordinary reflected path already reaches that seat, it is unchanged and there is no effect. Otherwise exactly one contact visibly flexes and rebounds once, redirecting the ball onto a genuine reflected suffix ending in the selected region, with a distinct haptic where hardware provides one. That contact is a localized theme-colored wall section wherever a wall on the path can reach the region, and otherwise a seat ring the ball kicks off, lit exactly as any struck ring is. Walls are searched before rings, so a round that can flex a wall does.
+
+There is no text overlay, hidden spawn, or later steering. Every other bounce is ordinary specular reflection, and the visible endpoint plus its two enclosing rays identify the same winner.
+
+On iPad, Pinball's playfield is inset to the board shape the fairness work is verified against, so it is narrower than the screen in portrait; this keeps every seat reachable on every supported device.
+
+THEMES AND ACCESSIBILITY
+A simultaneous three-finger tap on a safe screen saves a different theme without clearing the mode, group, or result, shows that theme's name for about a second, and is ignored during active interaction. With VoiceOver, use the equivalent Shuffle colors action. Dynamic Type, Reduce Motion, Reduce Transparency, Increase Contrast, Differentiate Without Color, and all four iPad orientations are supported. App Shortcuts open each mode via local whosfirst://mode/... URLs.
+
+Finger positions, entries, seats, flicks, paths, and results exist only in memory and are never transmitted. Only the launch mode, visual theme, a nonpersonal migration marker, which one-time introduction screens and tips have been seen, and a count of finished choices (no longer updated once the tip has been shown) are stored locally. Themes use original procedural abstractions, original flat drawings of generic subjects, and system typography; no third-party artwork, logos, characters, fonts, or trade dress. Theme names are disclosed in Settings as unofficial color inspiration with no affiliation.
